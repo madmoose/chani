@@ -1,5 +1,9 @@
-#include "support/raw_stream.h"
+#ifndef DOS_DOS_H
+#define DOS_DOS_H
 
+#include "support/types.h"
+
+class file_reader_t;
 class ibm5160_t;
 
 class dos_t {
@@ -11,31 +15,16 @@ public:
 public:
 	void unimplemented_int(const char *op_name);
 
-	void build_psp(uint16_t psp_segment);
-	bool exec(raw_istream_t &is);
+	void install();
 
-	void int10();
+	void build_psp(uint16_t psp_segment);
+	bool exec(file_reader_t &rd);
+
 	void int21();
 	void int33();
 
-	void int10_00_set_video_mode();
-	void int10_01_set_text_mode_cursor_shape();
-	void int10_02_set_cursor_position();
-	void int10_03_get_cursor_position_and_shape();
-	void int10_04_read_light_pen_position();
-	void int10_05_select_active_display_page();
-	void int10_06_scroll_up_window();
-	void int10_07_scroll_down_window();
-	void int10_08_read_character_and_attribute_at_cursor_position();
-	void int10_09_write_character_and_attribute_at_cursor_position();
-	void int10_0a_write_character_only_at_cursor_position();
-	void int10_0b_set_color();
-	void int10_0c_write_graphics_pixel();
-	void int10_0d_read_graphics_pixel();
-	void int10_0e_teletype_output();
-	void int10_0f_get_current_video_mode();
-	void int10_11_change_text_mode_character_set();
-	void int10_13_write_string();
+	void stc();
+	void clc();
 
 	void int21_00_program_terminate();                            // 1.0+
 	void int21_01_character_input();                              // 1.0+
@@ -164,5 +153,6 @@ public:
 	void int33_000e_light_pen_emulation_off();
 	void int33_000f_define_mickey_pixel_ratio();
 	void int33_0010_define_screen_region_for_updating();
-
 };
+
+#endif

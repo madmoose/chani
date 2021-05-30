@@ -2,24 +2,43 @@
 #define EMU_IBM5160
 
 #include "support/types.h"
+#include "emu/emu.h"
 
+class bios_t;
 class dos_t;
-class isa_bus_t;
 class i8086_t;
+class i8254_pit_t;
+class vga_t;
 
 class ibm5160_t {
 public:
-	isa_bus_t *bus;
-	i8086_t   *cpu;
-	dos_t     *dos;
-	byte      *memory;
+	bios_t      *bios;
+	byte        *memory;
+	dos_t       *dos;
+	i8086_t     *cpu;
+	i8254_pit_t *pit;
+	vga_t       *vga;
 
 	ibm5160_t();
 
-	byte     read_mem8(uint16_t seg, uint16_t ofs);
-	uint16_t read_mem16(uint16_t seg, uint16_t ofs);
+	uint16_t read(address_space_t, uint32_t, width_t = W8);
+	void     write(address_space_t, uint32_t, width_t, uint16_t);
 
-	void handle_software_interrupt(byte interrupt);
+	byte mem_read8(uint16_t seg, uint16_t ofs) {
+		return read(MEM, 0x10 * seg + ofs, W8);
+	}
+
+	uint16_t mem_read16(uint16_t seg, uint16_t ofs) {
+		return read(MEM, 0x10 * seg + ofs, W16);
+	}
+
+	void mem_write8(uint16_t seg, uint16_t ofs, byte v) {
+		return write(MEM, 0x10 * seg + ofs, W8, v);
+	}
+
+	void mem_write16(uint16_t seg, uint16_t ofs, uint16_t v) {
+		return write(MEM, 0x10 * seg + ofs, W16, v);
+	}
 };
 
 #endif

@@ -1,25 +1,60 @@
-#ifndef EMU_I80806
-#define EMU_I80806
+#ifndef EMU_I8086
+#define EMU_I8086
 
+#include <functional>
+#include <vector>
+
+#include "emu/emu.h"
+#include "emu/device.h"
 #include "support/types.h"
 
 class ibm5160_t;
 
-class i8086_t {
-	ibm5160_t *machine;
-	byte *memory;
+struct i8086_addr_t {
+	uint16_t seg;
+	uint16_t ofs;
+};
+
+class i8086_t : public device_t {
 	int instr_count = 0;
 	uint64_t cycles = 0;
 
+	std::vector<callback_t>       callbacks;
+	i8086_addr_t                  callback_base_addr;
+	i8086_addr_t                  callback_next_addr;
+
 public:
+	read_cb_t  read;
+	write_cb_t write;
+
 	i8086_t();
-	void set_machine(ibm5160_t *machine);
-	void set_memory(byte *memory);
+
+	double frequency_in_mhz() {
+		return 50.0;
+	}
+
+	uint64_t next_cycles();
+	uint64_t run_cycles(uint64_t cycles);
+
 	void dump_state();
 	void log_state();
+
+	void         set_callback_base(uint16_t callback_base_seg);
+	i8086_addr_t install_callback(uint16_t seg, uint16_t ofs, callback_t callback);
+
 	uint32_t step();
 	uint32_t dispatch();
 
+	bool int_delay;
+	bool int_nmi;
+	bool int_intr;
+	byte int_number;
+
+	void raise_nmi();
+	void raise_intr(byte num);
+	void call_int(byte num);
+
+	/* Registers */
 	enum {
 		REG_AX,
 		REG_CX,
@@ -56,6 +91,9 @@ public:
 		REP_REP,
 	} repmode;
 
+	uint16_t log_cs;
+	uint16_t log_ip;
+
 	// Registers
 	uint16_t ip;
 	uint16_t op_ip;
@@ -75,25 +113,43 @@ public:
 	uint16_t di;
 	uint16_t si;
 
-	struct {
-		uint16_t u15 : 1;
-		uint16_t u14 : 1;
-		uint16_t u13 : 1;
-		uint16_t u12 : 1;
-		uint16_t of  : 1;
-		uint16_t df  : 1;
-		uint16_t tf  : 1;
-		uint16_t if_ : 1;
+	uint16_t flags;
 
-		uint16_t sf  : 1;
-		uint16_t zf  : 1;
-		uint16_t u5  : 1;
-		uint16_t af  : 1;
-		uint16_t u3  : 1;
-		uint16_t pf  : 1;
-		uint16_t u1  : 1;
-		uint16_t cf  : 1;
-	} flags;
+	enum {
+		FLAG_CF = (1 <<  0),
+		FLAG_PF = (1 <<  2),
+		FLAG_AF = (1 <<  4),
+		FLAG_ZF = (1 <<  6),
+		FLAG_SF = (1 <<  7),
+		FLAG_TF = (1 <<  8),
+		FLAG_IF = (1 <<  9),
+		FLAG_DF = (1 << 10),
+		FLAG_OF = (1 << 11),
+	};
+
+	void set_flags(uint16_t mask, bool cond) {
+		flags = cond ? (flags | mask) : (flags & ~mask);
+	}
+
+	bool get_cf() { return !!(flags & FLAG_CF); }
+	bool get_pf() { return !!(flags & FLAG_PF); }
+	bool get_af() { return !!(flags & FLAG_AF); }
+	bool get_zf() { return !!(flags & FLAG_ZF); }
+	bool get_sf() { return !!(flags & FLAG_SF); }
+	bool get_tf() { return !!(flags & FLAG_TF); }
+	bool get_if() { return !!(flags & FLAG_IF); }
+	bool get_df() { return !!(flags & FLAG_DF); }
+	bool get_of() { return !!(flags & FLAG_OF); }
+
+	void set_cf(bool cond) { set_flags(FLAG_CF, cond); }
+	void set_pf(bool cond) { set_flags(FLAG_PF, cond); }
+	void set_af(bool cond) { set_flags(FLAG_AF, cond); }
+	void set_zf(bool cond) { set_flags(FLAG_ZF, cond); }
+	void set_sf(bool cond) { set_flags(FLAG_SF, cond); }
+	void set_tf(bool cond) { set_flags(FLAG_TF, cond); }
+	void set_if(bool cond) { set_flags(FLAG_IF, cond); }
+	void set_df(bool cond) { set_flags(FLAG_DF, cond); }
+	void set_of(bool cond) { set_flags(FLAG_OF, cond); }
 
 	struct modrm_t {
 		byte     v;
@@ -103,7 +159,7 @@ public:
 		union {
 			byte     reg;
 			struct {
-				byte sreg_ovr;
+				byte sreg;
 				uint16_t ofs;
 			};
 		};
@@ -114,27 +170,27 @@ public:
 	modrm_t modrm_mem_sw(byte modrm, bool s, bool w);
 	modrm_t modrm_reg_sw(byte modrm, bool s, bool w);
 
-	uint16_t read_modrm(modrm_t modrm, byte sreg_def = SEG_DS);
-	void     write_modrm(modrm_t modrm, uint16_t v, byte sreg_def = SEG_DS);
+	uint16_t read_modrm(modrm_t modrm);
+	void     write_modrm(modrm_t modrm, uint16_t v);
 
 	static const char *str_reg(byte reg, bool w);
 	uint16_t read_reg(byte reg, bool w);
 	void     write_reg(byte reg, uint16_t v, bool w);
 
 // protected:
-	byte     read_mem8(uint16_t seg, uint16_t ofs);
-	uint16_t read_mem16(uint16_t seg, uint16_t ofs);
-	uint16_t read_mem(uint16_t seg, uint16_t ofs, bool w) {
-		return !w ? read_mem8(seg, ofs) : read_mem16(seg, ofs);
+	byte     mem_read8(uint16_t seg, uint16_t ofs);
+	uint16_t mem_read16(uint16_t seg, uint16_t ofs);
+	uint16_t mem_read(uint16_t seg, uint16_t ofs, bool w) {
+		return !w ? mem_read8(seg, ofs) : mem_read16(seg, ofs);
 	}
 
-	void write_mem8(uint16_t seg, uint16_t ofs, byte v);
-	void write_mem16(uint16_t seg, uint16_t ofs, uint16_t v);
-	void write_mem(uint16_t seg, uint16_t ofs, uint16_t v, bool w) {
+	void mem_write8(uint16_t seg, uint16_t ofs, byte v);
+	void mem_write16(uint16_t seg, uint16_t ofs, uint16_t v);
+	void mem_write(uint16_t seg, uint16_t ofs, uint16_t v, bool w) {
 		if (!w) {
-			write_mem8(seg, ofs, v);
+			mem_write8(seg, ofs, v);
 		} else {
-			write_mem16(seg, ofs, v);
+			mem_write16(seg, ofs, v);
 		}
 	}
 
@@ -160,13 +216,13 @@ public:
 
 	int16_t strop_delta(bool w) {
 		if (!w) {
-			if (!flags.df) {
+			if (!(flags & FLAG_DF)) {
 				return 1;
 			} else {
 				return -1;
 			}
 		} else {
-			if (!flags.df) {
+			if (!(flags & FLAG_DF)) {
 				return 2;
 			} else {
 				return -2;
@@ -174,7 +230,7 @@ public:
 		}
 	}
 
-	uint16_t alu_sw(byte func, uint16_t a, uint16_t b, bool w);
+	uint16_t alu_w(byte func, uint16_t a, uint16_t b, bool w);
 
 	void update_flags_add8(uint8_t res, uint8_t dst, uint8_t src);
 	void update_flags_sub8(uint8_t res, uint8_t dst, uint8_t src);

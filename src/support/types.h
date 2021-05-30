@@ -1,40 +1,78 @@
-#ifndef TYPES_H
-#define TYPES_H
+#ifndef SUPPORT_TYPES_H
+#define SUPPORT_TYPES_H
 
-#include <stdint.h>
+#include <cstdint>
+#include <cstddef>
 
-typedef uint8_t      byte;
+typedef uint8_t byte;
 typedef unsigned int uint;
 
 inline
-uint8_t hi(uint16_t v)
-{
-	return uint8_t(v >> 8u);
+uint16_t readle16(byte *p) {
+	return (uint16_t(p[0]) << 0u)
+	     + (uint16_t(p[1]) << 8u);
 }
 
 inline
-uint8_t lo(uint16_t v)
-{
-	return uint8_t(v & 0xffu);
+uint16_t readbe16(byte *p) {
+	return (uint16_t(p[1]) << 0u)
+	     + (uint16_t(p[0]) << 8u);
 }
 
 inline
-uint16_t concat(uint8_t a, uint8_t b) {
-	return (uint16_t(a) << 8u)
-	     | (uint16_t(b) << 0u);
+uint16_t readle32(byte *p) {
+	return (uint32_t(p[0]) <<  0u)
+	     + (uint32_t(p[1]) <<  8u)
+	     + (uint32_t(p[2]) << 16u)
+	     + (uint32_t(p[3]) << 24u);
 }
 
 inline
-uint32_t concat(uint8_t a, uint8_t b, uint8_t c) {
-	return (uint32_t(a) << 16u)
-	     | (uint32_t(b) <<  8u)
-	     | (uint32_t(c) <<  0u);
+void writele16(byte *p, uint16_t v) {
+	p[0] = (v >>  0u) & 0xffu;
+	p[1] = (v >>  8u) & 0xffu;
 }
 
 inline
-uint32_t concat(uint16_t a, uint16_t b) {
-	return (uint32_t(a) << 16u)
-	     | (uint32_t(b) <<  0u);
+void writebe16(byte *p, uint16_t v) {
+	p[0] = (v >>  8u) & 0xffu;
+	p[1] = (v >>  0u) & 0xffu;
+}
+
+inline
+void writele32(byte *p, uint32_t v) {
+	p[0] = (v >>  0u) & 0xffu;
+	p[1] = (v >>  8u) & 0xffu;
+	p[2] = (v >> 16u) & 0xffu;
+	p[3] = (v >> 24u) & 0xffu;
+}
+
+inline
+void writebe32(byte *p, uint32_t v) {
+	p[0] = (v >> 24u) & 0xffu;
+	p[1] = (v >> 16u) & 0xffu;
+	p[2] = (v >>  8u) & 0xffu;
+	p[3] = (v >>  0u) & 0xffu;
+}
+
+inline
+byte readlo(uint16_t v) {
+	return (byte)v;
+}
+
+inline
+byte readhi(uint16_t v) {
+	return (byte)(v >> 8);
+}
+
+inline
+void writelo(uint16_t &dst, byte b) {
+	dst = (dst & 0xff00) | b;
+}
+
+inline
+void writehi(uint16_t &dst, byte b) {
+	dst = (dst & 0x00ff) | (uint16_t(b) << 8);
 }
 
 #endif

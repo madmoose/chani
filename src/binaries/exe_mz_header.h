@@ -1,10 +1,9 @@
-#ifndef EXE_MZ_HEADER_H
-#define EXE_MZ_HEADER_H
+#ifndef BINARIES_EXE_MZ_HEADER_H
+#define BINARIES_EXE_MZ_HEADER_H
 
 #include "support/types.h"
 
-class raw_istream_t;
-class raw_ostream_t;
+class file_reader_t;
 
 struct exe_mz_header_t { // DOS .EXE header
 	uint16_t e_magic;    // Magic number
@@ -27,8 +26,7 @@ struct exe_mz_header_t { // DOS .EXE header
 	uint16_t e_res2[10]; // Reserved words
 	uint32_t e_lfanew;   // File address of new exe header
 
-	bool load(raw_istream_t &is);
-	bool save(raw_ostream_t &os);
+	bool load(file_reader_t &rd);
 	void dump();
 };
 

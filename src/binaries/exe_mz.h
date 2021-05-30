@@ -1,11 +1,14 @@
-#ifndef EXE_MZ_H
-#define EXE_MZ_H
+#ifndef BINARIES_EXE_MZ_H
+#define BINARIES_EXE_MZ_H
+
+#include "exe_mz_header.h"
 
 #include "support/types.h"
-#include "exe_mz_header.h"
 
 #include <string>
 #include <vector>
+
+class file_reader_h;
 
 struct exe_mz_relocation_t {
 	uint16_t ofs;
@@ -20,7 +23,7 @@ struct exe_mz_t {
 	const std::string name() { return _name; }
 	const std::string format() { return "DOS MZ executable"; }
 
-	bool load(raw_istream_t &is);
+	bool load(file_reader_t &rd);
 
 	exe_mz_header_t                  head;
 	std::vector<exe_mz_relocation_t> relocations;

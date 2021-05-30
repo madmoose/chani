@@ -1,9 +1,10 @@
-#include "dos.h"
+#include "bios.h"
 
-#include "../emu/i8086.h"
-#include "../emu/ibm5160.h"
+#include "emu/i8086.h"
+#include "emu/ibm5160.h"
+#include "support/types.h"
 
-void dos_t::int10() {
+void bios_t::int10() {
 	byte ah = readhi(machine->cpu->ax);
 
 	switch (ah) {
@@ -26,81 +27,83 @@ void dos_t::int10() {
 		case 0x11: int10_11_change_text_mode_character_set(); break;
 		case 0x13: int10_13_write_string(); break;
 	}
+
+	machine->cpu->op_iret();
 }
 
-void dos_t::int10_00_set_video_mode() {
+void bios_t::int10_00_set_video_mode() {
 	// unimplemented_int(__FUNCTION__);
 	printf("INT10: Set video mode %x\n", readlo(machine->cpu->ax));
 }
 
-void dos_t::int10_01_set_text_mode_cursor_shape() {
+void bios_t::int10_01_set_text_mode_cursor_shape() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_02_set_cursor_position() {
+void bios_t::int10_02_set_cursor_position() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_03_get_cursor_position_and_shape() {
+void bios_t::int10_03_get_cursor_position_and_shape() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_04_read_light_pen_position() {
+void bios_t::int10_04_read_light_pen_position() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_05_select_active_display_page() {
+void bios_t::int10_05_select_active_display_page() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_06_scroll_up_window() {
+void bios_t::int10_06_scroll_up_window() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_07_scroll_down_window() {
+void bios_t::int10_07_scroll_down_window() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_08_read_character_and_attribute_at_cursor_position() {
+void bios_t::int10_08_read_character_and_attribute_at_cursor_position() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_09_write_character_and_attribute_at_cursor_position() {
+void bios_t::int10_09_write_character_and_attribute_at_cursor_position() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_0a_write_character_only_at_cursor_position() {
+void bios_t::int10_0a_write_character_only_at_cursor_position() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_0b_set_color() {
+void bios_t::int10_0b_set_color() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_0c_write_graphics_pixel() {
+void bios_t::int10_0c_write_graphics_pixel() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_0d_read_graphics_pixel() {
+void bios_t::int10_0d_read_graphics_pixel() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_0e_teletype_output() {
+void bios_t::int10_0e_teletype_output() {
 	// unimplemented_int(__FUNCTION__);
 	 byte c = readlo(machine->cpu->ax);
 	 printf("%c", isprint(c) ? c : '.');
 }
 
-void dos_t::int10_0f_get_current_video_mode() {
+void bios_t::int10_0f_get_current_video_mode() {
 	writehi(machine->cpu->ax, 80);
 	writelo(machine->cpu->ax,  3);
 	writehi(machine->cpu->bx,  0);
 }
 
-void dos_t::int10_11_change_text_mode_character_set() {
+void bios_t::int10_11_change_text_mode_character_set() {
 	unimplemented_int(__FUNCTION__);
 }
 
-void dos_t::int10_13_write_string() {
+void bios_t::int10_13_write_string() {
 	unimplemented_int(__FUNCTION__);
 }

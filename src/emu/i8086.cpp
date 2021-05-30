@@ -1,29 +1,60 @@
 #include "i8086.h"
 
 #include <cassert>
-#include <cstdio>
 #include <cctype>
+#include <cstdio>
+#include <cstring>
 
-#include "support/endian.h"
+#include <map>
+#include <utility>
+#include <vector>
+
 #include "ibm5160.h"
 
 #define CHANIDEBUG 0
 #define CPULOG     0
+
+struct call_stack_entry_t {
+	i8086_addr_t from;
+	i8086_addr_t to;
+	bool         is_int;
+};
+
+std::vector<call_stack_entry_t> call_stack;
+
+void dump_call_stack() {
+	printf("Callstack:\n");
+	for (size_t i = 0; i < call_stack.size(); i++) {
+		printf("\t%3zu: %04x:%04x -> %04x:%04x%s\n", i,
+			call_stack[i].from.seg, call_stack[i].from.ofs,
+			call_stack[i].to.seg, call_stack[i].to.ofs,
+			call_stack[i].is_int ? " - interrupt" : ""
+		);
+	}
+	printf("\n");
+}
 
 i8086_t::i8086_t() {
 	op = 0;
 	is_prefix = false;
 	sreg_ovr = 0;
 	repmode = REP_NONE;
-	memory = nullptr;
+
+	int_delay = false;
+	int_nmi = false;
+	int_intr = false;
 }
 
-void i8086_t::set_machine(ibm5160_t *a_machine) {
-	machine = a_machine;
+uint64_t i8086_t::next_cycles() {
+	return 1;
 }
 
-void i8086_t::set_memory(byte *a_memory) {
-	memory = a_memory;
+uint64_t i8086_t::run_cycles(uint64_t cycles) {
+	uint64_t actual_cycles = 0;
+	while (actual_cycles < cycles) {
+		actual_cycles += step();
+	}
+	return actual_cycles;
 }
 
 void i8086_t::dump_state() {
@@ -49,32 +80,21 @@ void i8086_t::dump_state() {
 	printf("ds=%04x\t", ds);
 	printf("si=%04x\t", si);
 
-	printf("O%d ", flags.of);
-	printf("D%d ", flags.df);
-	printf("I%d ", flags.if_);
-	printf("T%d ", flags.tf);
-	printf("S%d ", flags.sf);
-	printf("Z%d ", flags.zf);
-	printf("A%d ", flags.af);
-	printf("P%d ", flags.pf);
-	printf("C%d\n\n", flags.cf);
+	printf("O%d ", get_of());
+	printf("D%d ", get_df());
+	printf("I%d ", get_if());
+	printf("T%d ", get_tf());
+	printf("S%d ", get_sf());
+	printf("Z%d ", get_zf());
+	printf("A%d ", get_af());
+	printf("P%d ", get_pf());
+	printf("C%d\n",get_cf());
+	printf("\n");
 }
 
 void i8086_t::log_state() {
-	uint16_t psw = 0;
-
-	psw |= flags.of  ? (1 << 11) : 0;
-	psw |= flags.df  ? (1 << 10) : 0;
-	psw |= flags.if_ ? (1 <<  9) : 0;
-	psw |= flags.tf  ? (1 <<  8) : 0;
-	psw |= flags.sf  ? (1 <<  7) : 0;
-	psw |= flags.zf  ? (1 <<  6) : 0;
-	// psw |= flags.af  ? (1 <<  4) : 0;
-	psw |= flags.pf  ? (1 <<  2) : 0;
-	psw |= flags.cf  ? (1 <<  0) : 0;
-
 	printf("%10d: ", instr_count);
-	printf("%04X:%04X  ", cs, ip);
+	printf("%04X:%04X  ", log_cs, log_ip);
 	printf(" EAX:%08X", ax);
 	printf(" EBX:%08X", bx);
 	printf(" ECX:%08X", cx);
@@ -86,60 +106,79 @@ void i8086_t::log_state() {
 	printf(" DS:%04X", ds);
 	printf(" ES:%04X", es);
 	printf(" SS:%04X", ss);
-	printf(" C%d", flags.cf);
-	printf(" Z%d", flags.zf);
-	printf(" S%d", flags.sf);
-	printf(" O%d", flags.of);
-	printf(" I%d", flags.if_);
-	printf(" F%04X", psw);
+	printf(" C%d", get_cf());
+	printf(" Z%d", get_zf());
+	printf(" S%d", get_sf());
+	printf(" O%d", get_of());
+	printf(" I%d", get_if());
+	printf(" F%04X", flags & (FLAG_CF | FLAG_PF | FLAG_ZF | FLAG_SF | FLAG_TF | FLAG_IF | FLAG_DF | FLAG_OF));
 	printf("\n");
 }
 
-uint32_t i8086_t::step() {
-	op_ip = ip;
+void i8086_t::set_callback_base(uint16_t callback_base_seg) {
+	callback_base_addr = i8086_addr_t { callback_base_seg, 0 };
+	callback_next_addr = callback_base_addr;
+}
 
+i8086_addr_t i8086_t::install_callback(uint16_t seg, uint16_t ofs, callback_t callback) {
+	i8086_addr_t addr = callback_next_addr;
+
+	uint16_t callback_id = callbacks.size();
+	callbacks.push_back(callback);
+
+	mem_write8 (addr.seg, addr.ofs + 0, 0xfe);
+	mem_write8 (addr.seg, addr.ofs + 1, 0x38);
+	mem_write16(addr.seg, addr.ofs + 2, callback_id);
+
+	mem_write16(seg, ofs + 0, addr.ofs);
+	mem_write16(seg, ofs + 2, addr.seg);
+
+	callback_next_addr.ofs += 4;
+	if (callback_next_addr.ofs == 0) {
+		callback_next_addr.seg += 0x100;
+	}
+	return addr;
+}
+
+uint32_t i8086_t::step() {
 	sreg_ovr = 0;
 	repmode = REP_NONE;
 	uint32_t cycles = 0;
 
+	if (cs > 0 && cs < 0xf000) {
+		log_cs = cs;
+		log_ip = ip;
+	}
+
+	if (!int_delay) {
+		if (int_nmi) {
+			int_nmi = false;
+			call_int(2);
+			return cycles;
+		}
+		if (int_intr) {
+			int_intr = false;
+			call_int(int_number);
+			return cycles;
+		}
+	}
+	int_delay = false;
+
 	if (CHANIDEBUG) {
 		dump_state();
-		printf("%04x:%04x (%d)\t", cs, ip, instr_count);
+		printf("%04x:%04x (%d)\t", log_cs, log_ip, instr_count);
 	}
 
-	if (CPULOG) {
-		log_state();
-	}
-
-	instr_count++;
-
-	if (instr_count % 1000000 == 0) {
-		printf("inst_count: %d\n", instr_count / 1000000);
-	}
-
-	if (instr_count > 16000000) {
-		exit(0);
-	}
-
-	// if (ip == 0xf314) {
-	// 	char b[16];
-	// 	uint16_t si_ = si;
-	// 	int len = 0;
-	// 	while (len < 15) {
-	// 		char c = read_mem8(ds, si + len);
-	// 		b[len++] = c;
-	// 		if (!c) {
-	// 			break;
-	// 		}
-	// 	}
-	// 	printf("Opening resource '%s'\n", b);
-	// }
-
+	op_ip = ip;
 	do {
 		op = fetch8();
 		is_prefix = false;
 		cycles += dispatch();
 	} while (is_prefix);
+
+	if (cs < 0xf000) {
+		instr_count++;
+	}
 
 	return cycles;
 }
@@ -410,6 +449,46 @@ uint32_t i8086_t::dispatch() {
 }
 
 /*
+ * #### ##    ## ######## ######## ########  ########  ##     ## ########  ########  ######
+ *  ##  ###   ##    ##    ##       ##     ## ##     ## ##     ## ##     ##    ##    ##    ##
+ *  ##  ####  ##    ##    ##       ##     ## ##     ## ##     ## ##     ##    ##    ##
+ *  ##  ## ## ##    ##    ######   ########  ########  ##     ## ########     ##     ######
+ *  ##  ##  ####    ##    ##       ##   ##   ##   ##   ##     ## ##           ##          ##
+ *  ##  ##   ###    ##    ##       ##    ##  ##    ##  ##     ## ##           ##    ##    ##
+ * #### ##    ##    ##    ######## ##     ## ##     ##  #######  ##           ##     ######
+*/
+
+void i8086_t::raise_nmi() {
+	int_nmi = true;
+}
+
+void i8086_t::raise_intr(byte num) {
+	int_intr = true;
+	int_number = num;
+}
+
+void i8086_t::call_int(byte num) {
+	uint16_t int_ip = mem_read16(0, 4 * num);
+	uint16_t int_cs = mem_read16(0, 4 * num + 2);
+
+	if (CPULOG)  {
+		printf("INTERRUPT %d %3x [%04x:%04x]\n", instr_count, num, int_cs, int_ip);
+	}
+
+	push(flags);
+	push(cs);
+	push(ip);
+
+	set_if(false);
+	set_tf(false);
+
+	call_stack.push_back({{cs, op_ip}, {int_cs, int_ip}, true});
+
+	cs = int_cs;
+	ip = int_ip;
+}
+
+/*
  * ##     ## ######## ##     ##    ########        ## ##      ##
  * ###   ### ##       ###   ###    ##     ##      ##  ##  ##  ##
  * #### #### ##       #### ####    ##     ##     ##   ##  ##  ##
@@ -419,65 +498,68 @@ uint32_t i8086_t::dispatch() {
  * ##     ## ######## ##     ##    ##     ## ##        ###  ###
  */
 
-static bool dump_mem_read = CPULOG;
-byte i8086_t::read_mem8(uint16_t seg, uint16_t ofs) {
-	byte v = memory[0x10 * seg + ofs];
-	if (dump_mem_read) {
-		printf("\nr%04x:%04x = %02x (%c)\t", seg, ofs, v, isprint(v) ? v : '.');
+byte i8086_t::mem_read8(uint16_t seg, uint16_t ofs) {
+	uint32_t ea = 0x10 * seg + ofs;
+
+	byte v = read(MEM, ea, W8);
+
+	if (CPULOG) {
+		printf("rb [%04x:%04x] -> %02x\n", seg, ofs, v);
 	}
 
 	return v;
 }
 
-uint16_t i8086_t::read_mem16(uint16_t seg, uint16_t ofs) {
-	byte b0 = read_mem8(seg, ofs);
-	byte b1 = read_mem8(seg, ofs+1);
+uint16_t i8086_t::mem_read16(uint16_t seg, uint16_t ofs) {
+	uint32_t ea = 0x10 * seg + ofs;
 
-	if (ofs & 1) {
-		cycles += 4;
-	}
+	uint16_t v = read(MEM, ea, W16);
 
-	uint16_t w = (uint16_t(b0) << 0u)
-	           + (uint16_t(b1) << 8u);
-
-	return w;
-}
-
-void i8086_t::write_mem8(uint16_t seg, uint16_t ofs, byte v) {
 	if (CPULOG) {
-		uint32_t ea = 0x10 * seg + ofs;
-		printf("wb [%05x] <- %02x\n", ea, v);
-	}
-	memory[0x10 * seg + ofs] = v;
-}
-
-void i8086_t::write_mem16(uint16_t seg, uint16_t ofs, uint16_t v) {
-	if (CPULOG) {
-		uint32_t ea = 0x10 * seg + ofs;
-		printf("ww [%05x] <- %04x\n", ea, v);
+		printf("rw [%04x:%04x] -> %04x\n", seg, ofs, v);
 	}
 
 	if (ofs & 1) {
 		cycles += 4;
 	}
 
-	memory[0x10 * seg + ofs + 0] = readlo(v);
-	memory[0x10 * seg + ofs + 1] = readhi(v);
+	return v;
+}
+
+void i8086_t::mem_write8(uint16_t seg, uint16_t ofs, byte v) {
+	uint32_t ea = 0x10 * seg + ofs;
+
+	if (CPULOG) {
+		// printf("wb [%05x] <- %02x\n", ea, v);
+		printf("wb [%04x:%04x] <- %02x\n", seg, ofs, v);
+	}
+	write(MEM, ea, W8, v);
+}
+
+void i8086_t::mem_write16(uint16_t seg, uint16_t ofs, uint16_t v) {
+	uint32_t ea = 0x10 * seg + ofs;
+
+	if (CPULOG) {
+		// printf("ww [%05x] <- %04x\n", ea, v);
+		printf("ww [%04x:%04x] <- %04x\n", seg, ofs, v);
+	}
+
+	if (ofs & 1) {
+		cycles += 4;
+	}
+
+	write(MEM, ea, W16, v);
 }
 
 byte i8086_t::fetch8() {
-	byte v = read_mem8(cs, ip);
-
-	// printf("fetch8: %04x:%04x = %02x\n", cs, ip, v);
+	byte v = mem_read8(cs, ip);
 
 	ip += 1;
 	return v;
 }
 
 uint16_t i8086_t::fetch16() {
-	uint16_t w = read_mem16(cs, ip);
-
-	// printf("fetch16: %04x:%04x = %04x\n", cs, ip, w);
+	uint16_t w = mem_read16(cs, ip);
 
 	ip += 2;
 	return w;
@@ -493,11 +575,11 @@ uint16_t sext(byte v) {
 
 void i8086_t::push(uint16_t v) {
 	sp -= 2;
-	write_mem16(ss, sp, v);
+	mem_write16(ss, sp, v);
 }
 
 uint16_t i8086_t::pop() {
-	uint16_t v = read_mem16(ss, sp);
+	uint16_t v = mem_read16(ss, sp);
 	sp += 2;
 	return v;
 }
@@ -583,8 +665,8 @@ void i8086_t::modrm_t::print() {
 	if (!is_mem) {
 		printf("%s", str_reg(reg, w));
 	} else {
-		if (sreg_ovr) {
-			printf("%s:", str_sreg((sreg_ovr >> 3) & 0b11));
+		if (sreg != SEG_DS) {
+			printf("%s:", str_sreg(sreg));
 		}
 		printf("[%04x]", ofs);
 	}
@@ -605,19 +687,31 @@ i8086_t::modrm_t i8086_t::modrm_mem_sw(byte modrm, bool s, bool w) {
 	} else {
 		uint16_t ofs;
 		res.is_mem = true;
-		res.sreg_ovr = sreg_ovr;
+
+		// If BP is the base register, default segment to SS.
+		switch (rm) {
+			case 0b000: res.sreg = SEG_DS; break;
+			case 0b001: res.sreg = SEG_DS; break;
+			case 0b010: res.sreg = SEG_SS; break;
+			case 0b011: res.sreg = SEG_SS; break;
+			case 0b100: res.sreg = SEG_DS; break;
+			case 0b101: res.sreg = SEG_DS; break;
+			case 0b110: res.sreg = mod ? SEG_SS : SEG_DS; break;
+			case 0b111: res.sreg = SEG_DS; break;
+		}
+
 		switch (rm) {
 			case 0b000: ofs = bx + si; break;
 			case 0b001: ofs = bx + di; break;
-			case 0b010: ofs = bp + si; res.sreg_ovr = 0x36; break;
-			case 0b011: ofs = bp + di; res.sreg_ovr = 0x36; break;
+			case 0b010: ofs = bp + si; break;
+			case 0b011: ofs = bp + di; break;
 			case 0b100: ofs = si;      break;
 			case 0b101: ofs = di;      break;
 			case 0b110: ofs = mod ? bp : fetch16(); break;
 			case 0b111: ofs = bx;      break;
 		}
 		switch (mod) {
-			case 0b01: ofs += fetch8(); break;
+			case 0b01: ofs += sext(fetch8()); break;
 			case 0b10: ofs += fetch16(); break;
 		}
 		res.ofs = ofs;
@@ -639,7 +733,7 @@ i8086_t::modrm_t i8086_t::modrm_reg_sw(byte modrm, bool s, bool w) {
 	return res;
 }
 
-uint16_t i8086_t::read_modrm(i8086_t::modrm_t dst, byte sreg_def) {
+uint16_t i8086_t::read_modrm(i8086_t::modrm_t dst) {
 	uint16_t v;
 
 	if (!dst.is_mem) {
@@ -649,13 +743,13 @@ uint16_t i8086_t::read_modrm(i8086_t::modrm_t dst, byte sreg_def) {
 			v = sext(v);
 		}
 	} else {
-		v = read_mem(read_sreg_ovr(sreg_def), dst.ofs, dst.w);
+		v = mem_read(read_sreg_ovr(dst.sreg), dst.ofs, dst.w);
 	}
 
 	return v;
 }
 
-void i8086_t::write_modrm(i8086_t::modrm_t dst, uint16_t v, byte sreg_def) {
+void i8086_t::write_modrm(i8086_t::modrm_t dst, uint16_t v) {
 	if (!dst.is_mem) {
 		if (dst.s) {
 			v = sext(v);
@@ -663,7 +757,7 @@ void i8086_t::write_modrm(i8086_t::modrm_t dst, uint16_t v, byte sreg_def) {
 
 		write_reg(dst.reg, v, dst.w);
 	} else {
-		write_mem(read_sreg_ovr(sreg_def), dst.ofs, v, dst.w);
+		mem_write(read_sreg_ovr(dst.sreg), dst.ofs, v, dst.w);
 	}
 }
 
@@ -734,9 +828,9 @@ const char *i8086_t::str_w(bool w) {
  * ##     ## ########  #######
  */
 
-uint16_t i8086_t::alu_sw(byte func, uint16_t a, uint16_t b, bool w) {
+uint16_t i8086_t::alu_w(byte func, uint16_t a, uint16_t b, bool w) {
 	uint16_t res;
-	uint16_t c = flags.cf;
+	uint16_t c = !!(flags & FLAG_CF);
 
 	switch (func) {
 		case ALU_ADD: res = a + b; break;
@@ -808,10 +902,12 @@ inline bool signbit16(uint16_t v) {
  */
 
 inline bool cf8_add(uint16_t res, uint16_t dst, uint16_t src) {
+	(void)src;
 	return readlo(res) < readlo(dst);
 }
 
 inline bool cf16_add(uint16_t res, uint16_t dst, uint16_t src) {
+	(void)src;
 	return res < dst;
 }
 
@@ -820,10 +916,12 @@ inline bool cf_w_add(uint16_t res, uint16_t dst, uint16_t src, bool w) {
 }
 
 inline bool cf8_sub(uint16_t res, uint16_t dst, uint16_t src) {
+	(void)res;
 	return readlo(dst) < readlo(src);
 }
 
 inline bool cf16_sub(uint16_t res, uint16_t dst, uint16_t src) {
+	(void)res;
 	return dst < src;
 }
 
@@ -926,83 +1024,87 @@ inline bool of_w_sub(uint16_t res, uint16_t dst, uint16_t src, bool w) {
 }
 
 void i8086_t::update_flags_add8(uint8_t res, uint8_t dst, uint8_t src) {
-	flags.cf = cf8_add(res, dst, src);
-	flags.pf = pf8(res);
-	flags.af = af8(res, dst, src);
-	flags.zf = zf8(res);
-	flags.sf = sf8(res);
-	flags.of = of8_add(res, dst, src);
+	set_cf(cf8_add(res, dst, src));
+	set_pf(pf8(res));
+	set_af(af8(res, dst, src));
+	set_zf(zf8(res));
+	set_sf(sf8(res));
+	set_of(of8_add(res, dst, src));
 }
 
 void i8086_t::update_flags_sub8(uint8_t res, uint8_t dst, uint8_t src) {
-	flags.cf = cf8_sub(res, dst, src);
-	flags.pf = pf8(res);
-	flags.af = af8(res, dst, src);
-	flags.zf = zf8(res);
-	flags.sf = sf8(res);
-	flags.of = of8_sub(res, dst, src);
+	set_cf(cf8_sub(res, dst, src));
+	set_pf(pf8(res));
+	set_af(af8(res, dst, src));
+	set_zf(zf8(res));
+	set_sf(sf8(res));
+	set_of(of8_sub(res, dst, src));
 }
 
 void i8086_t::update_flags_bin8(uint8_t res, uint8_t dst, uint8_t src) {
-	flags.cf = 0;
-	flags.pf = pf8(res);
-	flags.zf = zf8(res);
-	flags.sf = sf8(res);
-	flags.af = 0; // TODO: DOSBox does this.
-	flags.of = 0;
+	(void)dst;
+	(void)src;
+	set_cf(0);
+	set_pf(pf8(res));
+	set_zf(zf8(res));
+	set_sf(sf8(res));
+	set_af(0); // TODO: DOSBox does this
+	set_of(0);
 }
 
 void i8086_t::update_flags_shf8(uint8_t res, uint8_t src, bool cf) {
-	flags.cf = cf;
-	flags.pf = pf8(res);
-	flags.zf = zf8(res);
-	flags.sf = sf8(res);
-	flags.of = (res & 0x80) != (src & 0x80);
+	set_cf(cf);
+	set_pf(pf8(res));
+	set_zf(zf8(res));
+	set_sf(sf8(res));
+	set_of((res & 0x80) != (src & 0x80));
 }
 
 void i8086_t::update_flags_rot8(uint8_t res, uint8_t src, bool cf) {
-	flags.cf = cf;
-	flags.of = (res & 0x80) != (src & 0x80);
+	set_cf(cf);
+	set_of((res & 0x80) != (src & 0x80));
 }
 
 void i8086_t::update_flags_add16(uint16_t res, uint16_t dst, uint16_t src) {
-	flags.cf = cf16_add(res, dst, src);
-	flags.pf = pf16(res);
-	flags.af = af16(res, dst, src);
-	flags.zf = zf16(res);
-	flags.sf = sf16(res);
-	flags.of = of16_add(res, dst, src);
+	set_cf(cf16_add(res, dst, src));
+	set_pf(pf16(res));
+	set_af(af16(res, dst, src));
+	set_zf(zf16(res));
+	set_sf(sf16(res));
+	set_of(of16_add(res, dst, src));
 }
 
 void i8086_t::update_flags_sub16(uint16_t res, uint16_t dst, uint16_t src) {
-	flags.cf = cf16_sub(res, dst, src);
-	flags.pf = pf16(res);
-	flags.af = af16(res, dst, src);
-	flags.zf = zf16(res);
-	flags.sf = sf16(res);
-	flags.of = of16_sub(res, dst, src);
+	set_cf(cf16_sub(res, dst, src));
+	set_pf(pf16(res));
+	set_af(af16(res, dst, src));
+	set_zf(zf16(res));
+	set_sf(sf16(res));
+	set_of(of16_sub(res, dst, src));
 }
 
 void i8086_t::update_flags_bin16(uint16_t res, uint16_t dst, uint16_t src) {
-	flags.cf = 0;
-	flags.pf = pf16(res);
-	flags.zf = zf16(res);
-	flags.sf = sf16(res);
-	flags.af = 0; // TODO: DOSBox does this.
-	flags.of = 0;
+	(void)dst;
+	(void)src;
+	set_cf(0);
+	set_pf(pf16(res));
+	set_zf(zf16(res));
+	set_sf(sf16(res));
+	set_af(0); // TODO: DOSBox does this
+	set_of(0);
 }
 
 void i8086_t::update_flags_shf16(uint16_t res, uint16_t src, bool cf) {
-	flags.cf = cf;
-	flags.pf = pf16(res);
-	flags.zf = zf16(res);
-	flags.sf = sf16(res);
-	flags.of = (res & 0x8000) != (src & 0x8000);
+	set_cf(cf);
+	set_pf(pf16(res));
+	set_zf(zf16(res));
+	set_sf(sf16(res));
+	set_of((res & 0x8000) != (src & 0x8000));
 }
 
 void i8086_t::update_flags_rot16(uint16_t res, uint16_t src, bool cf) {
-	flags.cf = cf;
-	flags.of = (res & 0x8000) != (src & 0x8000);
+	set_cf(cf);
+	set_of((res & 0x8000) != (src & 0x8000));
 }
 
 void i8086_t::unimplemented(const char *op_name, int line) {
@@ -1036,10 +1138,27 @@ void i8086_t::op_alu_r_rm() {
 
 	uint16_t a = read_modrm(reg);
 	uint16_t b = read_modrm(mem);
-	uint16_t r = alu_sw(func, a, b, w);
+	if (!d) {
+		std::swap(a, b);
+	}
+	uint16_t r = alu_w(func, a, b, w);
+
+	// if (CHANIDEBUG) {
+	// 	printf("%04x op %04x -> %04x (%d, %d)\n", a, b, r, func, w);
+	// }
 
 	if (func != ALU_CMP) {
 		write_modrm(!d ? mem : reg, r);
+	}
+
+	cycles += 3;
+	// If reading from mem
+	if (mem.is_mem) {
+		cycles += 6;
+	}
+	// If writing to mem
+	if (!d && func != ALU_CMP) {
+		cycles += 7;
 	}
 
 	if (CHANIDEBUG) {
@@ -1066,11 +1185,13 @@ void i8086_t::op_alu_a_imm() {
 
 	uint16_t a = read_reg(REG_AX, w);
 	uint16_t b = fetch(w);
-	uint16_t r = alu_sw(func, a, b, w);
+	uint16_t r = alu_w(func, a, b, w);
 
 	if (func != ALU_CMP) {
 		write_reg(REG_AX, r, w);
 	}
+
+	cycles += 4;
 
 	if (CHANIDEBUG) {
 		const char *s_oper = &"add\0or\0\0adc\0sbb\0and\0sub\0xor\0cmp"[4 * func];
@@ -1084,6 +1205,8 @@ void i8086_t::op_push_sreg() {
 	uint16_t v = read_sreg(sreg);
 	push(v);
 
+	cycles += 10;
+
 	if (CHANIDEBUG) {
 		printf("push\t%s\n", str_sreg(sreg));
 	}
@@ -1094,6 +1217,9 @@ void i8086_t::op_pop_sreg() {
 
 	uint16_t v = pop();
 	write_sreg(sreg, v);
+	int_delay = true;
+
+	cycles += 8;
 
 	if (CHANIDEBUG) {
 		printf("pop\t%s\n", str_sreg(sreg));
@@ -1103,25 +1229,26 @@ void i8086_t::op_pop_sreg() {
 void i8086_t::op_seg_ovr_es() {
 	is_prefix = true;
 	sreg_ovr = op;
+	int_delay = true;
+
+	cycles += 2;
 }
 
 void i8086_t::op_daa() {
 	uint8_t al = readlo(ax);
-	bool    af = flags.af;
-	bool    cf = flags.cf;
+	bool    af = !!(flags & FLAG_AF);
+	bool    cf = !!(flags & FLAG_CF);
 
 	uint8_t old_al = al;
 	bool    old_cf = cf;
-	cf = 0;
 
 	if ((al & 0x0f) > 9 || af) {
 		al = al + 6;
-		cf = old_cf || (al < old_al);
 		af = 1;
 	} else {
 		af = 0;
 	}
-	if ((old_al > 0x99) || old_cf) {
+	if ((old_al > 0x9f) || old_cf) {
 		al += 0x60;
 		cf = 1;
 	} else {
@@ -1129,15 +1256,22 @@ void i8086_t::op_daa() {
 	}
 
 	writelo(ax, al);
-	flags.pf = pf8(al);
-	flags.af = af;
-	flags.zf = zf8(al);
-	flags.sf = sf8(al);
+
+	set_cf(cf);
+	set_pf(pf8(al));
+	set_af(af);
+	set_zf(zf8(al));
+	set_sf(sf8(al));
+
+	cycles += 4;
 }
 
 void i8086_t::op_seg_ovr_cs() {
 	is_prefix = true;
 	sreg_ovr = op;
+	int_delay = true;
+
+	cycles += 2;
 }
 
 void i8086_t::op_das() {
@@ -1147,27 +1281,32 @@ void i8086_t::op_das() {
 	bool    new_af = 0;
 	bool    new_cf = 0;
 
-	if ((al & 0x0f) > 9 || flags.af) {
+	if ((al & 0x0f) > 9 || get_af()) {
 		new_al = al - 6;
-		new_cf = flags.cf || (new_al > al);
+		new_cf = flags & FLAG_CF || (new_al > al);
 		new_af = 1;
 	}
-	if ((al > 0x99) || flags.cf) {
+	if ((al > 0x99) || flags & FLAG_CF) {
 		new_al -= 0x60;
 		new_cf = 1;
 	}
 
-	flags.cf = new_cf;
-	flags.pf = pf8(new_al);
-	flags.af = new_af;
-	flags.zf = zf8(al);
-	flags.sf = sf8(new_al);
+	set_cf(new_cf);
+	set_pf(pf8(new_al));
+	set_af(new_af);
+	set_zf(zf8(al));
+	set_sf(sf8(new_al));
 	writelo(ax, new_al);
+
+	cycles += 4;
 }
 
 void i8086_t::op_seg_ovr_ss() {
 	is_prefix = true;
 	sreg_ovr = op;
+	int_delay = true;
+
+	cycles += 2;
 }
 
 void i8086_t::op_aaa() {
@@ -1178,6 +1317,9 @@ void i8086_t::op_aaa() {
 void i8086_t::op_seg_ovr_ds() {
 	is_prefix = true;
 	sreg_ovr = op;
+	int_delay = true;
+
+	cycles += 2;
 }
 
 void i8086_t::op_aas() {
@@ -1193,11 +1335,13 @@ void i8086_t::op_inc_reg() {
 	uint16_t res = dst + 1;
 	write_reg(reg, res, true);
 
-	flags.pf = pf16(res);
-	flags.af = af16(res, dst, src);
-	flags.zf = zf16(res);
-	flags.sf = sf16(res);
-	flags.of = of16_add(res, dst, src);
+	set_pf(pf16(res));
+	set_af(af16(res, dst, src));
+	set_zf(zf16(res));
+	set_sf(sf16(res));
+	set_of(of16_add(res, dst, src));
+
+	cycles += 2;
 
 	if (CHANIDEBUG) {
 		printf("inc\t%s\n", str_reg(reg, true));
@@ -1212,11 +1356,13 @@ void i8086_t::op_dec_reg() {
 	uint16_t res = dst - 1;
 	write_reg(reg, res, true);
 
-	flags.pf = pf16(res);
-	flags.af = af16(res, dst, src);
-	flags.zf = zf16(res);
-	flags.sf = sf16(res);
-	flags.of = of16_sub(res, dst, src);
+	set_pf(pf16(res));
+	set_af(af16(res, dst, src));
+	set_zf(zf16(res));
+	set_sf(sf16(res));
+	set_of(of16_sub(res, dst, src));
+
+	cycles += 2;
 
 	if (CHANIDEBUG) {
 		printf("dec\t%s\n", str_reg(reg, true));
@@ -1230,7 +1376,9 @@ void i8086_t::op_push_reg() {
 	// so we can't use ::push(v)
 	sp -= 2;
 	uint16_t v = read_reg(reg, true);
-	write_mem16(ss, sp, v);
+	mem_write16(ss, sp, v);
+
+	cycles += 11;
 
 	if (CHANIDEBUG) {
 		printf("push\t%s\n", str_reg(reg, true));
@@ -1242,6 +1390,8 @@ void i8086_t::op_pop_reg() {
 
 	uint16_t v = pop();
 	write_reg(reg, v, true);
+
+	cycles += 8;
 
 	if (CHANIDEBUG) {
 		printf("pop\t%s\n", str_reg(reg, true));
@@ -1256,14 +1406,14 @@ void i8086_t::op_jcc() {
 	int8_t inc = (int8_t)fetch8();
 
 	switch (cond) {
-		case 0b000: r = flags.of; break;
-		case 0b001: r = flags.cf; break;
-		case 0b010: r = flags.zf; break;
-		case 0b011: r = flags.cf | flags.zf; break;
-		case 0b100: r = flags.sf; break;
-		case 0b101: r = flags.pf; break;
-		case 0b110: r = flags.sf ^ flags.of; break;
-		case 0b111: r = (flags.sf ^ flags.of) | flags.zf; break;
+		case 0b000: r = get_of(); break;
+		case 0b001: r = get_cf(); break;
+		case 0b010: r = get_zf(); break;
+		case 0b011: r = get_cf() | get_zf(); break;
+		case 0b100: r = get_sf(); break;
+		case 0b101: r = get_pf(); break;
+		case 0b110: r = get_sf() ^ get_of(); break;
+		case 0b111: r = (get_sf() ^ get_of()) | get_zf(); break;
 		default:
 			assert(0 && "unreachable");
 	}
@@ -1279,13 +1429,18 @@ void i8086_t::op_jcc() {
 	if (r) {
 		ip += inc;
 	}
+
+	cycles += 4;
+	if (r) {
+		cycles += 12;
+	}
 }
 
 void i8086_t::op_grp1_rmw_imm() {
 	bool w      = !!(op & 1);
 	byte modrm  = fetch8();
 	byte func   = (modrm >> 3) & 0b111;
-	modrm_t dst = modrm_mem_sw(modrm, false, w);
+	modrm_t mem = modrm_mem_sw(modrm, false, w);
 	uint16_t imm;
 
 	switch (op & 3) { // s:w
@@ -1297,18 +1452,28 @@ void i8086_t::op_grp1_rmw_imm() {
 			assert(0 && "unreachable");
 	}
 
-	uint16_t a = read_modrm(dst);
+	uint16_t a = read_modrm(mem);
 	uint16_t b = imm;
-	uint16_t r = alu_sw(func, a, b, w);
+	uint16_t r = alu_w(func, a, b, w);
 
 	if (func != ALU_CMP) {
-		write_modrm(dst, r);
+		write_modrm(mem, r);
+	}
+
+	cycles += 4;
+	// If reading from mem
+	if (mem.is_mem) {
+		cycles += 6;
+	}
+	// If writing to mem
+	if (func != ALU_CMP) {
+		cycles += 7;
 	}
 
 	if (CHANIDEBUG) {
 		const char *s_oper = &"add\0or\0\0adc\0sbb\0and\0sub\0xor\0cmp"[4 * func];
 		printf("%s\t%s ", s_oper, str_w(w));
-		dst.print();
+		mem.print();
 		printf(", %s\n", str_imm(imm));
 	}
 }
@@ -1357,6 +1522,16 @@ void i8086_t::op_mov_rm_r() {
 		write_modrm(reg, read_modrm(mem));
 	}
 
+	cycles += 2;
+	if (mem.is_mem) {
+		// If one argument is mem
+		cycles += 6;
+		if (!d) {
+			// If destination is mem
+			cycles += 1;
+		}
+	}
+
 	if (CHANIDEBUG) {
 		printf("mov\t");
 		if (!d) {
@@ -1382,6 +1557,11 @@ void i8086_t::op_mov_rm16_sreg() {
 		modrm_t dst = modrm_mem_sw(modrm, false, true);
 		write_modrm(dst, read_sreg(sreg));
 
+		cycles += 2;
+		if (dst.is_mem) {
+			cycles += 7;
+		}
+
 		if (CHANIDEBUG) {
 			printf("mov\t");
 			dst.print();
@@ -1390,6 +1570,12 @@ void i8086_t::op_mov_rm16_sreg() {
 	} else {
 		modrm_t src = modrm_mem_sw(modrm, false, true);
 		write_sreg(sreg, read_modrm(src));
+		int_delay = true;
+
+		cycles += 2;
+		if (src.is_mem) {
+			cycles += 6;
+		}
 
 		if (CHANIDEBUG) {
 			printf("mov\t%s, ", str_sreg(sreg));
@@ -1404,6 +1590,8 @@ void i8086_t::op_lea_r16_m16() {
 	modrm_t src = modrm_mem_sw(modrm, false, true);
 	modrm_t dst = modrm_reg_sw(modrm, false, true);
 	write_modrm(dst, src.ofs);
+
+	cycles += 2;
 
 	if (CHANIDEBUG) {
 		printf("mov\t");
@@ -1420,6 +1608,11 @@ void i8086_t::op_pop_rm16() {
 	modrm_t dst = modrm_mem_sw(modrm, false, true);
 	write_modrm(dst, pop());
 
+	cycles += 8;
+	if (dst.is_mem) {
+		cycles += 11;
+	}
+
 	if (CHANIDEBUG) {
 		printf("pop\t");
 		dst.print();
@@ -1430,17 +1623,23 @@ void i8086_t::op_pop_rm16() {
 void i8086_t::op_xchg_ax_r() {
 	byte reg = op & 0b111;
 
+	cycles += 3;
+
 	uint16_t tmp = read_reg(reg, true);
 	write_reg(reg, ax, true);
 	ax = tmp;
 }
 
 void i8086_t::op_cbw() {
-	unimplemented(__FUNCTION__, __LINE__);
+	ax = sext(readlo(ax));
+
+	cycles += 2;
 }
 
 void i8086_t::op_cwd() {
-	unimplemented(__FUNCTION__, __LINE__);
+	dx = (ax & 0x8000) ? 0xffff : 0x0000;
+
+	cycles += 5;
 }
 
 void i8086_t::op_call_far() {
@@ -1450,8 +1649,16 @@ void i8086_t::op_call_far() {
 	push(cs);
 	push(ip);
 
+	call_stack.push_back({
+		{cs, op_ip},
+		{seg, ofs},
+		false
+	});
+
 	cs = seg;
 	ip = ofs;
+
+	cycles += 28;
 
 	if (CHANIDEBUG) {
 		printf("call far %04x:%04x\n", seg, ofs);
@@ -1463,19 +1670,7 @@ void i8086_t::op_wait() {
 }
 
 void i8086_t::op_pushf() {
-	uint16_t psw = 0;
-
-	psw |= flags.of  ? (1 << 11) : 0;
-	psw |= flags.df  ? (1 << 10) : 0;
-	psw |= flags.if_ ? (1 <<  9) : 0;
-	psw |= flags.tf  ? (1 <<  8) : 0;
-	psw |= flags.sf  ? (1 <<  7) : 0;
-	psw |= flags.zf  ? (1 <<  6) : 0;
-	psw |= flags.af  ? (1 <<  4) : 0;
-	psw |= flags.pf  ? (1 <<  2) : 0;
-	psw |= flags.cf  ? (1 <<  0) : 0;
-
-	push(psw);
+	push(flags);
 
 	if (CHANIDEBUG) {
 		printf("pushf\n");
@@ -1483,17 +1678,9 @@ void i8086_t::op_pushf() {
 }
 
 void i8086_t::op_popf() {
-	uint16_t psw = pop();
+	flags = pop();
 
-	flags.of  = (psw & (1 << 11)) ? 1 : 0;
-	flags.df  = (psw & (1 << 10)) ? 1 : 0;
-	flags.if_ = (psw & (1 <<  9)) ? 1 : 0;
-	flags.tf  = (psw & (1 <<  8)) ? 1 : 0;
-	flags.sf  = (psw & (1 <<  7)) ? 1 : 0;
-	flags.zf  = (psw & (1 <<  6)) ? 1 : 0;
-	flags.af  = (psw & (1 <<  4)) ? 1 : 0;
-	flags.pf  = (psw & (1 <<  2)) ? 1 : 0;
-	flags.cf  = (psw & (1 <<  0)) ? 1 : 0;
+	cycles += 8;
 
 	if (CHANIDEBUG) {
 		printf("popf\n");
@@ -1501,11 +1688,15 @@ void i8086_t::op_popf() {
 }
 
 void i8086_t::op_sahf() {
-	unimplemented(__FUNCTION__, __LINE__);
+	flags = readhi(ax);
+
+	cycles += 4;
 }
 
 void i8086_t::op_lahf() {
-	unimplemented(__FUNCTION__, __LINE__);
+	writehi(ax, flags);
+
+	cycles += 4;
 }
 
 void i8086_t::op_mov_a_m() {
@@ -1514,13 +1705,16 @@ void i8086_t::op_mov_a_m() {
 	uint16_t seg = read_sreg_ovr(SEG_DS);
 	uint16_t ofs = fetch16();
 	uint16_t v;
+
 	if (!d) {
-		v = read_mem(seg, ofs, w);
+		v = mem_read(seg, ofs, w);
 		write_reg(REG_AX, v, w);
 	} else {
 		v = read_reg(REG_AX, w);
-		write_mem(seg, ofs, v, w);
+		mem_write(seg, ofs, v, w);
 	}
+
+	cycles += 10;
 
 	if (CHANIDEBUG) {
 		if (!d) {
@@ -1537,20 +1731,26 @@ void i8086_t::op_movs() {
 	byte     src_sreg = get_sreg_ovr(SEG_DS);
 	uint16_t src_seg  = read_sreg(src_sreg);
 
+	cycles += 1;
+
 	if (repmode == REP_NONE) {
+		cycles += 8;
 		goto inst;
 	}
 repeat:
 	if (cx == 0) {
 		return;
 	}
+
 	// TODO: Service interrupts
 	--cx;
 inst:
-	write_mem(es, di, read_mem(src_seg, si, w), w);
+	mem_write(es, di, mem_read(src_seg, si, w), w);
 
 	si += delta;
 	di += delta;
+
+	cycles += 17;
 
 	if (repmode != REP_NONE) {
 		goto repeat;
@@ -1562,6 +1762,10 @@ void i8086_t::op_cmps() {
 	int      delta  = strop_delta(w);
 	uint16_t di_seg = read_sreg_ovr(SEG_ES);
 	uint16_t si_seg = read_sreg(SEG_DS);
+
+	if (repmode == REP_NONE) {
+		cycles += 9;
+	}
 
 	if (CHANIDEBUG) {
 		if (repmode == REP_REP) {
@@ -1584,21 +1788,23 @@ repeat:
 	// TODO: Service interrupts
 	--cx;
 inst:
-	byte a = read_mem(di_seg, di, w);
-	byte b = read_mem(si_seg, si, w);
+	uint16_t a = mem_read(di_seg, di, w);
+	uint16_t b = mem_read(si_seg, si, w);
 	si += delta;
 	di += delta;
 
-	alu_sw(ALU_SUB, b, a, w);
+	alu_w(ALU_CMP, b, a, w);
+
+	cycles += 22;
 
 	if (CHANIDEBUG) {
-		printf(" %c <=> %c, zf=%d\n", a, b, flags.zf);
+		// printf(" %c <=> %c, zf=%d\n", a, b, flags.zf);
 	}
 
-	if (repmode == REP_REP && flags.zf) {
+	if (repmode == REP_REP && get_zf()) {
 		goto repeat;
 	}
-	if (repmode == REP_REPNE && !flags.zf) {
+	if (repmode == REP_REPNE && !get_zf()) {
 		goto repeat;
 	}
 }
@@ -1609,7 +1815,7 @@ void i8086_t::op_test_a_imm() {
 	uint16_t imm = fetch(w);
 
 	uint16_t a = read_reg(REG_AX, w);
-	alu_sw(ALU_AND, a, imm, w);
+	alu_w(ALU_AND, a, imm, w);
 
 	if (CHANIDEBUG) {
 		printf("test\ta%c, ", !w ? 'l' : 'x');
@@ -1622,6 +1828,11 @@ void i8086_t::op_stos() {
 	uint16_t v     = read_reg(REG_AX, w);
 	int      delta = strop_delta(w);
 
+	cycles += 1;
+	if (repmode != REP_NONE) {
+		cycles += 9;
+	}
+
 	if (repmode == REP_NONE) {
 		goto inst;
 	}
@@ -1632,8 +1843,10 @@ repeat:
 	// TODO: Service interrupts
 	--cx;
 inst:
-	write_mem(read_sreg_ovr(SEG_ES), di, v, w);
+	mem_write(read_sreg_ovr(SEG_ES), di, v, w);
 	di += delta;
+
+	cycles += 10;
 
 	if (repmode != REP_NONE) {
 		goto repeat;
@@ -1646,8 +1859,12 @@ inst:
 
 void i8086_t::op_lods() {
 	bool     w     = op & 1;
-	uint16_t v     = read_mem(read_sreg_ovr(SEG_DS), si, w);
+	uint16_t v     = mem_read(read_sreg_ovr(SEG_DS), si, w);
 	int      delta = strop_delta(w);
+
+	if (repmode != REP_NONE) {
+		cycles += 9;
+	}
 
 	if (repmode == REP_NONE) {
 		goto inst;
@@ -1656,11 +1873,15 @@ repeat:
 	if (cx == 0) {
 		return;
 	}
+	cycles += 1;
+
 	// TODO: Service interrupts
 	--cx;
 inst:
 	write_reg(REG_AX, v, w);
 	si += delta;
+
+	cycles += 12;
 
 	if (repmode != REP_NONE) {
 		goto repeat;
@@ -1672,8 +1893,50 @@ inst:
 }
 
 void i8086_t::op_scas() {
-	unimplemented(__FUNCTION__, __LINE__);
-	// bool w   = (op >> 3) & 1;
+	bool     w      = !!(op & 1);
+	int      delta  = strop_delta(w);
+	uint16_t di_seg = read_sreg_ovr(SEG_ES);
+
+	uint16_t a = read_reg(REG_AX, w);
+	uint16_t b;
+
+	if (CHANIDEBUG) {
+		if (repmode == REP_REP) {
+			printf("rep ");
+		} else if (repmode == REP_REPNE) {
+			printf("repne ");
+		}
+		printf("scas %s\n", str_w(w));
+	}
+
+	if (repmode != REP_NONE) {
+		cycles += 9;
+	}
+
+	if (repmode == REP_NONE) {
+		goto inst;
+	}
+repeat:
+	if (cx == 0) {
+		return;
+	}
+	// TODO: Service interrupts
+	--cx;
+
+inst:
+	b = mem_read(di_seg, di, w);
+	di += delta;
+
+	alu_w(ALU_CMP, a, b, w);
+
+	cycles += 15;
+
+	if (repmode == REP_REP && get_zf()) {
+		goto repeat;
+	}
+	if (repmode == REP_REPNE && !get_zf()) {
+		goto repeat;
+	}
 }
 
 void i8086_t::op_mov_reg_imm() {
@@ -1681,6 +1944,8 @@ void i8086_t::op_mov_reg_imm() {
 	bool w   = (op >> 3) & 1;
 	uint16_t imm = !w ? fetch8() : fetch16();
 	write_reg(reg, imm, w);
+
+	cycles += 4;
 
 	if (CHANIDEBUG) {
 		printf("mov\t%s, %s\n", str_reg(reg, w), str_imm(imm));
@@ -1693,6 +1958,8 @@ void i8086_t::op_ret_imm16_intraseg() {
 
 void i8086_t::op_ret_intraseg() {
 	ip = pop();
+
+	if (!call_stack.empty()) call_stack.pop_back();
 
 	if (CHANIDEBUG) {
 		printf("retn\n");
@@ -1709,6 +1976,8 @@ void i8086_t::op_les_r16_m16() {
 	write_modrm(dst, read_modrm(src));
 	src.ofs += 2;
 	es = read_modrm(src);
+
+	cycles += 16;
 
 	if (CHANIDEBUG) {
 		printf("les\t");
@@ -1730,6 +1999,8 @@ void i8086_t::op_lds_r16_m16() {
 	src.ofs += 2;
 	ds = read_modrm(src);
 
+	cycles += 16;
+
 	if (CHANIDEBUG) {
 		printf("lds\t");
 		dst.print();
@@ -1744,6 +2015,8 @@ void i8086_t::op_mov_m_imm() {
 	byte modrm = fetch8();
 	modrm_t dst = modrm_mem_sw(modrm, false, w);
 	uint16_t imm = fetch(w);
+
+	cycles += 10;
 
 	if (CHANIDEBUG) {
 		printf("mov\t%s ptr ", str_w(w));
@@ -1762,55 +2035,51 @@ void i8086_t::op_ret_interseg() {
 	ip = pop();
 	cs = pop();
 
+	if (!call_stack.empty()) call_stack.pop_back();
+
 	if (CHANIDEBUG) {
-		printf("RETF\n");
+		printf("retf\n");
 	}
 }
 
 void i8086_t::op_int_3() {
-	unimplemented(__FUNCTION__, __LINE__);
+	call_int(3);
+
+	if (CHANIDEBUG) {
+		printf("int\t%s\n", str_imm(3));
+	}
+
+	cycles += 52;
 }
 
 void i8086_t::op_int_imm8() {
 	byte imm = fetch8();
-
-	uint16_t psw = 0;
-
-	psw |= flags.of  ? (1 << 11) : 0;
-	psw |= flags.df  ? (1 << 10) : 0;
-	psw |= flags.if_ ? (1 <<  9) : 0;
-	psw |= flags.tf  ? (1 <<  8) : 0;
-	psw |= flags.sf  ? (1 <<  7) : 0;
-	psw |= flags.zf  ? (1 <<  6) : 0;
-	psw |= flags.af  ? (1 <<  4) : 0;
-	psw |= flags.pf  ? (1 <<  2) : 0;
-	psw |= flags.cf  ? (1 <<  0) : 0;
-	(void)psw;
-
-	// sp -= 2;
-	// write_mem16(ss, sp, psw & 0x0fff);
-
-	// sp -= 2;
-	// write_mem16(ss, sp, cs);
-
-	// sp -= 2;
-	// write_mem16(ss, sp, ip);
+	call_int(imm);
 
 	if (CHANIDEBUG) {
-		printf("int\t%x (ax=%04x)\n", imm, ax);
+		printf("int\t%s\n", str_imm(imm));
 	}
 
-	machine->handle_software_interrupt(imm);
-
-	// sp += 6;
+	cycles += 51; // TODO: 51 or 52 if imm=3 ?
 }
 
 void i8086_t::op_into() {
-	unimplemented(__FUNCTION__, __LINE__);
+	cycles += 4;
+	if (get_of()) {
+		call_int(4);
+		cycles += 49;
+	}
 }
 
 void i8086_t::op_iret() {
-	unimplemented(__FUNCTION__, __LINE__);
+	ip = pop();
+	cs = pop();
+	flags = pop();
+	int_delay = true;
+
+	cycles += 24;
+
+	call_stack.pop_back();
 }
 
 inline void rolb(uint16_t &v, byte n = 1) {
@@ -1936,16 +2205,28 @@ void i8086_t::op_grp2_rmw() {
 	byte func   = (modrm >> 3) & 0b111;
 	modrm_t dst = modrm_mem_sw(modrm, false, w);
 
-	byte n = v ? readlo(cx) : 1;
+	byte n = !v ? 1 : readlo(cx);
 
-	// TODO: DOSBox doesn't update flags if n = 0
+	// TODO: DOSBox doesn't update flags if n is zero
 	if (!n) {
 		return;
 	}
 
+	if (!v) {
+		cycles += 2;
+		if (dst.is_mem) {
+			cycles += 13;
+		}
+	} else {
+		cycles += 8 + 4*n;
+		if (dst.is_mem) {
+			cycles += 12;
+		}
+	}
+
 	uint16_t src = read_modrm(dst);
 	uint16_t res = src;
-	bool cf = flags.cf;
+	bool cf = flags & FLAG_CF;
 	if (!w) {
 		switch (func) {
 			case 0: rolb(res, n);     break;
@@ -2004,7 +2285,10 @@ void i8086_t::op_aad() {
 }
 
 void i8086_t::op_xlat() {
-	unimplemented(__FUNCTION__, __LINE__);
+	byte v = mem_read8(read_sreg_ovr(SEG_DS), bx + readlo(ax));
+	writelo(ax, v);
+
+	cycles += 11;
 }
 
 void i8086_t::op_esc() {
@@ -2018,8 +2302,14 @@ void i8086_t::op_loopnz() {
 		printf("loopnz\t%04x\n", ip + inc);
 	}
 
-	if (--cx != 0 && !flags.zf) {
+	bool cond = --cx != 0 && !get_zf();
+	if (cond) {
 		ip += inc;
+	}
+
+	cycles += 5;
+	if (cond) {
+		cycles += 14;
 	}
 }
 
@@ -2030,8 +2320,14 @@ void i8086_t::op_loopz() {
 		printf("loopnz\t%04x\n", ip + inc);
 	}
 
-	if (--cx != 0 && flags.zf) {
+	bool cond = --cx != 0 && get_zf();
+	if (cond) {
 		ip += inc;
+	}
+
+	cycles += 6;
+	if (cond) {
+		cycles += 12;
 	}
 }
 
@@ -2042,8 +2338,14 @@ void i8086_t::op_loop() {
 		printf("loop\t%04x\n", ip + inc);
 	}
 
-	if (--cx != 0) {
+	bool cond = --cx != 0;
+	if (cond) {
 		ip += inc;
+	}
+
+	cycles += 5;
+	if (cond) {
+		cycles += 19;
 	}
 }
 
@@ -2052,51 +2354,79 @@ void i8086_t::op_jcxz() {
 	if (!cx) {
 		ip += inc;
 	}
+
+	cycles += 6;
+	if (!cx) {
+		cycles += 12;
+	}
 }
 
 void i8086_t::op_in_al_imm8() {
-	unimplemented(__FUNCTION__, __LINE__);
+	byte port = fetch8();
+	byte v;
+
+	v = read(IO, port, W8);
+	writelo(ax, v);
+
+	cycles += 10;
 }
 
 void i8086_t::op_in_ax_imm8() {
-	unimplemented(__FUNCTION__, __LINE__);
+	byte port = fetch8();
+
+	uint16_t v = read(IO, port, W16);
+	ax = v;
+
+	cycles += 10;
 }
 
 void i8086_t::op_out_al_imm8() {
-	byte imm = fetch8();
-	(void)imm;
+	byte port = fetch8();
+
+	write(IO, port, W8, readlo(ax));
+
+	cycles += 10;
 
 	if (CHANIDEBUG) {
-		printf("out\tal, %s\n", str_imm(imm));
+		printf("out\tal, %s\n", str_imm(port));
 	}
-	unimplemented(__FUNCTION__, __LINE__);
 }
 
 void i8086_t::op_out_ax_imm8() {
 	uint16_t imm = fetch16();
-	(void)imm;
+
+	write(IO, imm, W16, ax);
+
+	cycles += 8;
 
 	if (CHANIDEBUG) {
 		printf("out\tax, %s\n", str_imm(imm));
 	}
-	unimplemented(__FUNCTION__, __LINE__);
 }
 
 void i8086_t::op_call_near() {
-	int16_t inc = (int16_t)fetch16();
+	uint16_t inc = fetch16();
 
 	sp -= 2;
-	write_mem16(ss, sp, ip);
+	mem_write16(ss, sp, ip);
+
+	call_stack.push_back({
+		{cs, op_ip},
+		{cs, uint16_t(ip + inc)},
+		false
+	});
+
+	cycles += 19;
 
 	if (CHANIDEBUG) {
-		printf("call\t%04x\n", (uint16_t)(ip + inc));
+		printf("call\t%04x\n", ip + inc);
 	}
 
 	ip += inc;
 }
 
 void i8086_t::op_jmp_near() {
-	int16_t inc = (int16_t)fetch16();
+	uint16_t inc = fetch16();
 
 	if (CHANIDEBUG) {
 		printf("jmp\t%04x\n", ip + inc);
@@ -2106,11 +2436,19 @@ void i8086_t::op_jmp_near() {
 }
 
 void i8086_t::op_jmp_far() {
-	unimplemented(__FUNCTION__, __LINE__);
+	uint16_t ofs = fetch16();
+	uint16_t seg = fetch16();
+
+	if (CHANIDEBUG) {
+		printf("jmp\tfar %04x:%04x\n", cs, ip);
+	}
+
+	cs = seg;
+	ip = ofs;
 }
 
 void i8086_t::op_jmp_short() {
-	int8_t inc = (int8_t)fetch8();
+	uint16_t inc = sext(fetch8());
 
 	if (CHANIDEBUG) {
 		printf("jmp\t%04x\n", ip + inc);
@@ -2120,39 +2458,63 @@ void i8086_t::op_jmp_short() {
 }
 
 void i8086_t::op_in_al_dx() {
-	unimplemented(__FUNCTION__, __LINE__);
+	uint16_t port = dx;
+	uint16_t v;
+
+	if (CHANIDEBUG) {
+		printf("in\tal, dx");
+	}
+
+	v = read(IO, port, W8);
+	writelo(ax, v);
+
+	cycles += 8;
 }
 
 void i8086_t::op_in_ax_dx() {
-	unimplemented(__FUNCTION__, __LINE__);
+	uint16_t port = dx;
+	uint16_t v = read(IO, port, W16);
+	ax = v;
+
+	cycles += 8;
 }
 
 void i8086_t::op_out_al_dx() {
-	unimplemented(__FUNCTION__, __LINE__);
-	// uint16_t port  = dx;
-	// byte     value = al;
-	// printf("out\t%xh, %xh\n", port, value);
+	uint16_t port = dx;
+
+	write(IO, port, W8, readlo(ax));
+
+	if (CHANIDEBUG) {
+		printf("out\tal, dx");
+	}
 }
 
 void i8086_t::op_out_ax_dx() {
-	unimplemented(__FUNCTION__, __LINE__);
-	// uint16_t port  = dx;
-	// uint16_t value = ax;
-	// printf("out\t%xh, %xh\n", port, value);
+	uint16_t port = dx;
+
+	write(IO, port, W16, ax);
+
+	if (CHANIDEBUG) {
+		printf("out\tal, dx");
+	}
 }
 
 void i8086_t::op_lock_prefix() {
 	// unimplemented(__FUNCTION__, __LINE__);
+	int_delay = true;
+	cycles += 2;
 }
 
 void i8086_t::op_repne() {
 	is_prefix = true;
 	repmode = REP_REPNE;
+	int_delay = true;
 }
 
 void i8086_t::op_rep() {
 	is_prefix = true;
 	repmode = REP_REP;
+	int_delay = true;
 }
 
 void i8086_t::op_hlt() {
@@ -2160,10 +2522,30 @@ void i8086_t::op_hlt() {
 }
 
 void i8086_t::op_cmc() {
-	flags.cf = !flags.cf;
+	set_cf(!get_cf());
+
+	cycles += 2;
 
 	if (CHANIDEBUG) {
 		printf("cmc\n");
+	}
+}
+
+static inline
+int16_t utos16(uint16_t v) {
+	if ((v & 0x8000) == 0) {
+		return int16_t(v);
+	} else {
+		return int16_t(~(v | 0x7fffu)) - 1;
+	}
+}
+
+static inline
+int32_t utos32(uint32_t v) {
+	if ((v & 0x80000000) == 0) {
+		return int32_t(v);
+	} else {
+		return int32_t(~(v | 0x7fffffffu)) - 1;
 	}
 }
 
@@ -2173,31 +2555,46 @@ void i8086_t::op_grp3_rmw() {
 	byte func   = (modrm >> 3) & 0b111;
 	modrm_t mem = modrm_mem_sw(modrm, false, w);
 	uint16_t res, src;
-
 	switch (func) {
 		case 0b000: // test
-		case 0b001: // test
-			src = fetch(w);
-			(void)src;
+		case 0b001: {
+			uint16_t a = read_modrm(mem);
+			uint16_t b = fetch(w);
+
+			alu_w(ALU_AND, a, b, w);
+
 			if (CHANIDEBUG) {
 				printf("test\t");
-				printf(!w ? "%02xh" : "%04xh", src);
+				mem.print();
+				printf(" (0x%04x) ", a);
+				printf(", ");
+				printf(!w ? "%02xh" : "%04xh", b);
 				printf("\n");
 			}
-			unimplemented(__FUNCTION__, __LINE__);
+
+			// unimplemented(__FUNCTION__, __LINE__);
 			break;
+		}
 		case 0b010: // not
+			src = read_modrm(mem);
+			res = ~src;
+			write_modrm(mem, res);
+
 			if (CHANIDEBUG) {
 				printf("not\t");
 				mem.print();
 				printf("\n");
 			}
-			unimplemented(__FUNCTION__, __LINE__);
 			break;
 		case 0b011: // neg
 			src = read_modrm(mem);
-			res = alu_sw(ALU_SUB, 0, src, w);
+			res = alu_w(ALU_SUB, 0, src, w);
 			write_modrm(mem, res);
+
+			cycles += 3;
+			if (mem.is_mem) {
+				cycles += 13;
+			}
 
 			if (CHANIDEBUG) {
 				printf("neg\t");
@@ -2209,14 +2606,16 @@ void i8086_t::op_grp3_rmw() {
 			src = read_modrm(mem);
 			if (!w) {
 				ax = readlo(ax) * src;
-				flags.of = flags.cf = readhi(ax) != 0;
+				set_of(readhi(ax) != 0);
+				set_cf(readhi(ax) != 0);
 			} else {
 				uint32_t tmp = ax * src;
 				dx = tmp >> 16;
 				ax = tmp & 0xffff;
-				flags.of = flags.cf = dx != 0;
+				set_of(dx != 0);
+				set_cf(dx != 0);
 			}
-			flags.zf = ax == 0; // TODO: DOSBox defines zf, spec says undefined.
+			set_zf(ax == 0); // TODO: DOSBox defines zf, spec says undefined.
 
 			if (CHANIDEBUG) {
 				printf("mul\t");
@@ -2234,18 +2633,32 @@ void i8086_t::op_grp3_rmw() {
 			break;
 		case 0b110: // div
 			src = read_modrm(mem);
-			assert(src && "TODO: Implement div trap");
+			if (src == 0) {
+				call_int(0);
+				return;
+			}
 
 			if (!w) {
 				uint16_t quotient  = ax / src;
 				uint16_t remainder = ax % src;
-				assert(quotient <= 0xff && "TODO: Implement div trap");
-				writehi(ax, quotient);
-				writelo(ax, remainder);
+
+				if (quotient > 0xff) {
+					call_int(0);
+					return;
+				}
+
+				writelo(ax, quotient);
+				writehi(ax, remainder);
 			} else {
 				uint32_t dividend  = (((uint32_t)dx) << 16) + (uint32_t)ax;
-				uint16_t quotient  = dividend / src;
-				uint16_t remainder = dividend % src;
+				uint32_t quotient  = dividend / src;
+				uint32_t remainder = dividend % src;
+
+				if (quotient > 0xffff) {
+					call_int(0);
+					return;
+				}
+
 				ax = quotient;
 				dx = remainder;
 			}
@@ -2257,18 +2670,65 @@ void i8086_t::op_grp3_rmw() {
 			}
 			break;
 		case 0b111: // idiv
+			src = read_modrm(mem);
+			if (src == 0) {
+				call_int(0);
+				return;
+			}
+
+			if (!w) {
+				int16_t dividend = utos16(ax);
+				int16_t divisor  = utos16(src);
+
+				if (dividend == 0x7fff && divisor == -1) {
+					call_int(0);
+					return;
+				}
+
+				int16_t quotient  = dividend / divisor;
+				int16_t remainder = dividend % divisor;
+
+				if (quotient > 0xff) {
+					call_int(0);
+					return;
+				}
+
+				writelo(ax, quotient);
+				writehi(ax, remainder);
+			} else {
+				int32_t dividend = utos32((((uint32_t)dx) << 16) + (uint32_t)ax);
+				int32_t divisor  = utos32(src);
+
+				if (dividend == 0x7fffffff && divisor == -1) {
+					call_int(0);
+					return;
+				}
+
+				int32_t quotient  = dividend / src;
+				int32_t remainder = dividend % src;
+
+				if (quotient > 0xffff) {
+					call_int(0);
+					return;
+				}
+
+				ax = quotient;
+				dx = remainder;
+			}
+
 			if (CHANIDEBUG) {
 				printf("idiv\t");
 				mem.print();
 				printf("\n");
 			}
-			unimplemented(__FUNCTION__, __LINE__);
 			break;
 	}
 }
 
 void i8086_t::op_clc() {
-	flags.cf = false;
+	set_cf(false);
+
+	cycles += 2;
 
 	if (CHANIDEBUG) {
 		printf("clc\n");
@@ -2276,7 +2736,9 @@ void i8086_t::op_clc() {
 }
 
 void i8086_t::op_stc() {
-	flags.cf = true;
+	set_cf(true);
+
+	cycles += 2;
 
 	if (CHANIDEBUG) {
 		printf("stc\n");
@@ -2284,7 +2746,9 @@ void i8086_t::op_stc() {
 }
 
 void i8086_t::op_cli() {
-	flags.if_ = false;
+	set_if(false);
+
+	cycles += 2;
 
 	if (CHANIDEBUG) {
 		printf("cli\n");
@@ -2292,7 +2756,10 @@ void i8086_t::op_cli() {
 }
 
 void i8086_t::op_sti() {
-	flags.if_ = true;
+	set_if(true);
+	int_delay = true;
+
+	cycles += 2;
 
 	if (CHANIDEBUG) {
 		printf("sti\n");
@@ -2300,7 +2767,9 @@ void i8086_t::op_sti() {
 }
 
 void i8086_t::op_cld() {
-	flags.df = false;
+	set_df(false);
+
+	cycles += 2;
 
 	if (CHANIDEBUG) {
 		printf("cld\n");
@@ -2308,7 +2777,9 @@ void i8086_t::op_cld() {
 }
 
 void i8086_t::op_std() {
-	flags.df = true;
+	set_df(true);
+
+	cycles += 2;
 
 	if (CHANIDEBUG) {
 		printf("std\n");
@@ -2321,10 +2792,14 @@ void i8086_t::op_grp4_rm8() {
 	uint16_t src, dst, res;
 	modrm_t mem;
 
-	if (modrm == 0xa5) {
-		printf("HOOK");
-		dump_state();
-		exit(0);
+	if (modrm == 0x38) {
+		uint16_t callback_id = fetch16();
+		callback_t callback = callbacks[callback_id];
+		if (CPULOG || CHANIDEBUG) {
+			printf("callback\t%s\n", str_imm(callback_id));
+		}
+		callback();
+		return;
 	}
 
 	switch (subop) {
@@ -2335,11 +2810,16 @@ void i8086_t::op_grp4_rm8() {
 			res = dst + src;
 			write_modrm(mem, res);
 
-			flags.pf = pf8(res);
-			flags.af = af8(res, dst, src);
-			flags.zf = zf8(res);
-			flags.sf = sf8(res);
-			flags.of = of8_add(res, dst, src);
+			set_pf(pf8(res));
+			set_af(af8(res, dst, src));
+			set_zf(zf8(res));
+			set_sf(sf8(res));
+			set_of(of8_add(res, dst, src));
+
+			cycles += 3;
+			if (mem.is_mem) {
+				cycles += 12;
+			}
 
 			if (CHANIDEBUG) {
 				printf("inc\t");
@@ -2354,11 +2834,16 @@ void i8086_t::op_grp4_rm8() {
 			res = dst - src;
 			write_modrm(mem, res);
 
-			flags.pf = pf8(res);
-			flags.af = af8(res, dst, src);
-			flags.zf = zf8(res);
-			flags.sf = sf8(res);
-			flags.of = of8_sub(res, dst, src);
+			set_pf(pf8(res));
+			set_af(af8(res, dst, src));
+			set_zf(zf8(res));
+			set_sf(sf8(res));
+			set_of(of8_sub(res, dst, src));
+
+			cycles += 3;
+			if (mem.is_mem) {
+				cycles += 12;
+			}
 
 			if (CHANIDEBUG) {
 				printf("dec\t");
@@ -2374,13 +2859,33 @@ void i8086_t::op_grp5() {
 	byte subop = (modrm >> 3) & 0b111;
 	modrm_t mem = modrm_mem_sw(modrm, false, true);
 	switch (subop) {
+		case 0b000: {
+			uint16_t v = read_modrm(mem);
+			uint16_t res = alu_w(ALU_ADD, v, 1, true);
+			write_modrm(mem, res);
+			break;
+		}
+		case 0b001: {
+			uint16_t v = read_modrm(mem);
+			uint16_t res = alu_w(ALU_SUB, v, 1, true);
+			write_modrm(mem, res);
+			break;
+		}
 		case 0b010: {
 			uint16_t ofs = read_modrm(mem);
-
-			push(cs);
 			push(ip);
-
 			ip = ofs;
+
+			cycles += 16;
+			if (mem.is_mem) {
+				cycles += 5;
+			}
+
+			call_stack.push_back({
+				{cs, op_ip},
+				{cs, ofs},
+				false
+			});
 
 			if (CHANIDEBUG) {
 				printf("call \t");
@@ -2398,6 +2903,14 @@ void i8086_t::op_grp5() {
 			push(cs);
 			push(ip);
 
+			cycles += 37;
+
+			call_stack.push_back({
+				{cs, op_ip},
+				{seg, ofs},
+				false
+			});
+
 			cs = seg;
 			ip = ofs;
 
@@ -2408,9 +2921,25 @@ void i8086_t::op_grp5() {
 			}
 			break;
 		}
-		case 0b110: {
+		case 0b100: {
+			uint16_t ofs = read_modrm(mem);
+			ip = ofs;
+
+			if (CHANIDEBUG) {
+				printf("jmp\t");
+				mem.print();
+				printf("\n");
+			}
+			break;
+		}
+		case 0b110: { // push_rm
 			uint16_t v = read_modrm(mem);
 			push(v);
+
+			cycles += 11;
+			if (mem.is_mem) {
+				cycles += 7;
+			}
 
 			if (CHANIDEBUG) {
 				printf("push\t");
@@ -2420,7 +2949,7 @@ void i8086_t::op_grp5() {
 			break;
 		}
 		default:
-			printf("op_grp sup op %x unimplemented\n", subop);
+			printf("op_grp5 subop %x unimplemented\n", subop);
 			unimplemented(__FUNCTION__, __LINE__);
 	}
 }

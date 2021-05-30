@@ -3,9 +3,14 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <map>
+#include "emu/i8086.h"
+#include "emu/ibm5160.h"
 
-#include "../emu/i8086.h"
-#include "../emu/ibm5160.h"
+std::map<int, int> fd_map;
+int next_dos_fd = 5;
+
+#define CHANIDEBUG 0
 
 void dos_t::int21() {
 	byte ah = readhi(machine->cpu->ax);
@@ -123,6 +128,32 @@ void dos_t::int21() {
 		default:
 			unimplemented_int(__FUNCTION__);
 	}
+
+	machine->cpu->op_iret();
+}
+
+void dos_t::stc() {
+	uint16_t ip = machine->cpu->pop();
+	uint16_t cs = machine->cpu->pop();
+	uint16_t psw = machine->cpu->pop();
+
+	psw |= 0x01;
+
+	machine->cpu->push(psw);
+	machine->cpu->push(cs);
+	machine->cpu->push(ip);
+}
+
+void dos_t::clc() {
+	uint16_t ip = machine->cpu->pop();
+	uint16_t cs = machine->cpu->pop();
+	uint16_t psw = machine->cpu->pop();
+
+	psw &= ~0x01;
+
+	machine->cpu->push(psw);
+	machine->cpu->push(cs);
+	machine->cpu->push(ip);
 }
 
 void dos_t::int21_00_program_terminate() {
@@ -226,7 +257,6 @@ void dos_t::int21_18_reserved() {
 }
 
 void dos_t::int21_19_get_default_drive() {
-	// unimplemented_int(__FUNCTION__);
 	writelo(machine->cpu->ax, 2);
 }
 
@@ -382,6 +412,8 @@ void dos_t::int21_3c_create_or_truncate_file() {
 	unimplemented_int(__FUNCTION__);
 }
 
+int g_fd;
+
 void dos_t::int21_3d_open_file() {
 	byte filepath[257];
 
@@ -390,20 +422,21 @@ void dos_t::int21_3d_open_file() {
 	uint16_t dx = machine->cpu->dx;
 	byte c;
 
-	while (len < 256 && (c = machine->read_mem8(ds, dx++))) {
+	while (len < 256 && (c = machine->read(MEM, 0x10*ds + dx++))) {
 		filepath[len++] = c;
 	}
 	filepath[len] = '\0';
 
-	printf("Attempting to open file: %s\n", filepath);
+	// printf("Attempting to open file: %s\n", filepath);
 	if (strcmp((char*)filepath, "dune.dat") == 0) {
 		int fd = open("DUNE.DAT", O_RDONLY);
 		assert(fd > 0);
-		printf("fd = %d\n", fd);
-		machine->cpu->op_clc();
-		machine->cpu->ax = fd+2; // TODO: Hacked to match DOSBox
+		fd_map.insert(std::make_pair(next_dos_fd, fd));
+
+		clc();
+		machine->cpu->ax = next_dos_fd++;
 	} else {
-		machine->cpu->op_stc();
+		stc();
 		machine->cpu->ax = 0x02;
 	}
 	// unimplemented_int(__FUNCTION__);
@@ -415,25 +448,46 @@ void dos_t::int21_3e_close_file() {
 
 void dos_t::int21_3f_read_file_or_device() {
 	// unimplemented_int(__FUNCTION__);
-	int       fd    = machine->cpu->bx-2;
+	int       fd    = fd_map.at(machine->cpu->bx);
 	uint16_t  count = machine->cpu->cx;
 	byte     *buf   = machine->memory + (0x10 * machine->cpu->ds + machine->cpu->dx);
 
-	// printf("%05x\n", 0x10 * machine->cpu->ds + machine->cpu->dx);
-	ssize_t r = read(fd, buf, count);
-	printf("Read %zd/%d bytes from %d to %04x:%04x\n", r, count, fd, machine->cpu->ds, machine->cpu->dx);
-	// for (int i = 0; i != 64; ++i) {
-	// 	if (i % 16 > 0) {
-	// 		printf(" ");
-	// 	}
-	// 	printf("%02x", machine.memory[0x10 * machine->cpu->ds + machine->cpu->dx + i]);
-	// 	if (i % 16 == 15) {
-	// 		printf("\n");
-	// 	}
-	// }
+	size_t position = lseek(fd, 0, SEEK_CUR);
+	(void)position;
+	ssize_t remain = count;
+	while (remain > 0) {
+		ssize_t r = read(fd, buf, remain);
+		if (r <= 0) {
+			printf("Failed to read %d bytes\n", (int)remain);
+			exit(1);
+		}
+		buf += r;
+		remain -= r;
+	}
 
-	machine->cpu->op_clc();
-	machine->cpu->ax = r;
+	if (CHANIDEBUG) {
+		printf("Read %d (0x%x) bytes from %d offset %d to %04x:%04x-%04x:%04x\n",
+			count, count, fd, (int)position,
+			machine->cpu->ds, machine->cpu->dx,
+			machine->cpu->ds, machine->cpu->dx + count
+		);
+	}
+
+	if (CHANIDEBUG) {
+		for (int i = 0; i != std::min(uint16_t(64), count); ++i) {
+			if (i % 16 > 0) {
+				printf(" ");
+			}
+			printf("%02x", machine->memory[0x10 * machine->cpu->ds + machine->cpu->dx + i]);
+			if (i % 16 == 15) {
+				printf("\n");
+			}
+		}
+		printf("\n");
+	}
+
+	clc();
+	machine->cpu->ax = count;
 }
 
 void dos_t::int21_40_write_file_or_device() {
@@ -445,7 +499,7 @@ void dos_t::int21_41_delete_file() {
 }
 
 void dos_t::int21_42_move_file_pointer() {
-	int fd = machine->cpu->bx - 2; // TODO: Hacked to match DOSBox
+	int fd = fd_map.at(machine->cpu->bx);
 
 	int whence;
 	switch (readlo(machine->cpu->ax)) {
@@ -454,19 +508,20 @@ void dos_t::int21_42_move_file_pointer() {
 		case 2: whence = SEEK_END; break;
 		default:
 			machine->cpu->ax = 0x19; // Seek error
-			machine->cpu->op_stc();
+			stc();
 			return;
 	}
 
-	off_t offset = (((uint32_t)machine->cpu->cx) << 16) + machine->cpu->dx;
+	size_t offset = (((uint32_t)machine->cpu->cx) << 16) + machine->cpu->dx;
+	size_t result = lseek(fd, offset, whence);
 
-	offset = lseek(fd, offset, whence);
+	if (CHANIDEBUG) {
+		printf("Seek %d to %d [%04x%04x] (%xh), got offset 0x%4x\n", fd, int(offset), machine->cpu->cx, machine->cpu->dx, whence, int(result));
+	}
 
-	printf("Seek %d to %lld [%04x%04x] (%xh)\n", fd, offset, machine->cpu->cx, machine->cpu->dx, whence);
-
-	machine->cpu->op_clc();
-	machine->cpu->dx = (offset >> 16);
-	machine->cpu->ax = (offset >>  0) & 0xffff;
+	clc();
+	machine->cpu->dx = (result >> 16);
+	machine->cpu->ax = (result >>  0) & 0xffff;
 }
 
 void dos_t::int21_43_get_or_set_file_attributes() {

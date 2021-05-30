@@ -1,26 +1,5 @@
-SRCS=$(wildcard src/**/*.cpp)
-OBJS=$(subst .cpp,.o,$(SRCS))
+SRC=$(wildcard src/**/*.cpp) src/chani.cpp
+HDR=$(wildcard src/**/*.h)
 
-TOPSRCS=$(wildcard src/*.cpp)
-TOPOBJS=$(subst .cpp,.o,$(TOPSRCS))
-
-CPPFLAGS=-I src --std=c++17 -O2
-
-all: chani
-
-chani: src/chani.o $(OBJS)
-	$(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)
-
-depend: .depend
-
-.depend: $(SRCS) $(TOPSRCS)
-	$(RM) ./.depend
-	$(CXX) $(CPPFLAGS) -MM $^>>./.depend;
-
-clean:
-	$(RM) $(OBJS) $(TOPOBJS)
-
-distclean: clean
-	$(RM) chani *~ .depend
-
-include .depend
+chani: $(SRC) $(HDR)
+	c++ -o chani -std=c++2a -O3 -I src $(SRC)

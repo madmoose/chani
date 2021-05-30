@@ -1,10 +1,9 @@
 #include "dos.h"
 
-#include "../emu/i8086.h"
-#include "../emu/ibm5160.h"
+#include "emu/i8086.h"
+#include "emu/ibm5160.h"
 
 void dos_t::int33() {
-
 	switch (machine->cpu->ax) {
 		case 0x0000: int33_0000_reset_driver_and_read_status(); break;
 		case 0x0001: int33_0001_show_mouse_cursor(); break;
@@ -24,6 +23,8 @@ void dos_t::int33() {
 		case 0x000f: int33_000f_define_mickey_pixel_ratio(); break;
 		case 0x0010: int33_0010_define_screen_region_for_updating(); break;
 	}
+
+	machine->cpu->op_iret();
 }
 
 void dos_t::int33_0000_reset_driver_and_read_status() {
@@ -65,11 +66,13 @@ void dos_t::int33_0006_return_button_release_data() {
 }
 
 void dos_t::int33_0007_define_horizontal_cursor_range() {
-	unimplemented_int(__FUNCTION__);
+	printf("int33,7: horizontal mouse range %d-%d\n", machine->cpu->cx, machine->cpu->dx);
+	// unimplemented_int(__FUNCTION__);
 }
 
 void dos_t::int33_0008_define_vertical_cursor_range() {
-	unimplemented_int(__FUNCTION__);
+	printf("int33,8: vertical mouse range %d-%d\n", machine->cpu->cx, machine->cpu->dx);
+	// unimplemented_int(__FUNCTION__);
 }
 
 void dos_t::int33_0009_define_graphics_cursor() {

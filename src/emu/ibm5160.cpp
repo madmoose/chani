@@ -4,43 +4,82 @@
 
 #include "support/types.h"
 
+#include "bios/bios.h"
 #include "dos/dos.h"
-#include "emu/isa_bus.h"
 #include "emu/i8086.h"
+#include "emu/i8254_pit.h"
+#include "emu/vga.h"
 
 ibm5160_t::ibm5160_t()
-	: memory(new byte[640*1024])
+	: memory(new byte[1024*1024])
 {
-	for (int i = 0; i != 640*1024; ++i) {
+	for (int i = 0; i != 1024*1024; ++i) {
 		memory[i] = 0;
 	}
 
-	cpu = new i8086_t();
+	cpu = new i8086_t;
 	cpu->set_machine(this);
-	cpu->set_memory(memory);
+	cpu->read  = THIS_READ_CB(read);
+	cpu->write = THIS_WRITE_CB(write);
+
+	pit = new i8254_pit_t;
+	pit->set_machine(this);
+
+	vga = new vga_t;
+	vga->set_machine(this);
+
+	bios = new bios_t;
+	bios->machine = this;
+	bios->install();
+
+	dos  = new dos_t;
+	dos->machine = this;
+	dos->install();
 }
 
-byte ibm5160_t::read_mem8(uint16_t seg, uint16_t ofs) {
-	return memory[0x10 * seg + ofs];
+extern void dump_call_stack();
+
+uint16_t ibm5160_t::read(address_space_t address_space, uint32_t addr, width_t w) {
+	if (address_space == MEM) {
+		assert(addr < 1024*1024);
+		if (w == W8) {
+			return memory[addr];
+		}
+		return readle16(&memory[addr]);
+	}
+
+	if (address_space == IO) {
+		assert(w == W8);
+		byte v = 0;
+		if (addr >= 0x3c0 && addr < 0x3e0) {
+			v = vga->read(address_space, addr);
+		}
+		// printf("[%04x:%04x] IO %x -> %02x\n", cpu->cs, cpu->ip, addr, v);
+		return v;
+	}
+
+	return 0;
 }
 
-uint16_t ibm5160_t::read_mem16(uint16_t seg, uint16_t ofs) {
-	byte b0 = read_mem8(seg, ofs);
-	byte b1 = read_mem8(seg, ofs+1);
+void ibm5160_t::write(address_space_t address_space, uint32_t addr, width_t w, uint16_t v) {
+	if (address_space == MEM) {
+		assert(addr < 1024*1024);
+		if (w == W8) {
+			memory[addr] = v;
+		} else {
+			writele16(&memory[addr], v);
+		}
+		return;
+	}
 
-	uint16_t w = (uint16_t(b0) << 0u)
-	           + (uint16_t(b1) << 8u);
+	if (address_space == IO) {
+		// printf("[%04x:%04x] IO %x <- %02x\n", cpu->cs, cpu->ip, addr, v);
+		assert(w == W8);
 
-	return w;
-}
-
-void ibm5160_t::handle_software_interrupt(byte interrupt) {
-	switch (interrupt) {
-		case 0x10: dos->int10(); break;
-		case 0x21: dos->int21(); break;
-		case 0x33: dos->int33(); break;
-		default:
-			printf("%s:%d Unhandled interrupt %x\n", __FUNCTION__, __LINE__, interrupt);
-			// exit(0);
+		if (addr >= 0x040 && addr < 0x060) {
+			pit->write(addr - 0x040, v);
+		} else if (addr >= 0x3c0 && addr < 0x3e0) {
+			vga->write(address_space, addr, v);
+		}
 	}
 }
