@@ -1,6 +1,6 @@
 # Chani
 
-A more hackable DOSBox. With better logs and better visualizers.
+A more hackable DOSBox, by madmoose. With better logs and better visualizers.
 
 # Some features
 
