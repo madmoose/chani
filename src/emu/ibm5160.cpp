@@ -1,6 +1,7 @@
 #include "ibm5160.h"
 
 #include <cstdio>
+#include <cassert>
 
 #include "support/types.h"
 

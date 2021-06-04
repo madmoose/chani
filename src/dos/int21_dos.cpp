@@ -1,5 +1,7 @@
 #include "dos.h"
 
+#include <cassert>
+#include <string.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
