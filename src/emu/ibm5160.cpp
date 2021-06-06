@@ -10,12 +10,12 @@
 #include "emu/i8254_pit.h"
 #include "emu/vga.h"
 
-ibm5160_t::ibm5160_t()
-	: memory(new byte[1024*1024])
-{
-	for (int i = 0; i != 1024*1024; ++i) {
-		memory[i] = 0;
-	}
+#define MEMORY_SIZE     0x100000
+#define DIRTY_PAGE_SIZE     4096
+
+ibm5160_t::ibm5160_t() {
+	memory = (byte *)std::aligned_alloc(0x1000, MEMORY_SIZE);
+	memset(memory, 0, MEMORY_SIZE);
 
 	cpu = new i8086_t;
 	cpu->set_machine(this);
@@ -41,7 +41,7 @@ extern void dump_call_stack();
 
 uint16_t ibm5160_t::read(address_space_t address_space, uint32_t addr, width_t w) {
 	if (address_space == MEM) {
-		assert(addr < 1024*1024);
+		assert(addr < MEMORY_SIZE);
 		if (w == W8) {
 			return memory[addr];
 		}
@@ -63,7 +63,7 @@ uint16_t ibm5160_t::read(address_space_t address_space, uint32_t addr, width_t w
 
 void ibm5160_t::write(address_space_t address_space, uint32_t addr, width_t w, uint16_t v) {
 	if (address_space == MEM) {
-		assert(addr < 1024*1024);
+		assert(addr < MEMORY_SIZE);
 		if (w == W8) {
 			memory[addr] = v;
 		} else {

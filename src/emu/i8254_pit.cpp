@@ -50,8 +50,10 @@ byte i8254_counter_t::read() {
 			r = 0b10;
 			return readlo(output_latch);
 		default:
-			assert(0 && "unreachable");
+			break;
 	}
+	assert(0 && "unreachable");
+	return 0;
 }
 
 uint64_t i8254_counter_t::run_cycles(uint64_t cycles) {

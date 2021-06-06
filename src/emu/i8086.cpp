@@ -619,8 +619,10 @@ uint16_t i8086_t::read_sreg(byte sreg) {
 		case SEG_CS: return cs; break;
 		case SEG_SS: return ss; break;
 		case SEG_DS: return ds; break;
-		default: assert(0 && "invalid sreg");
+		default: break;
 	}
+	assert(0 && "invalid sreg");
+	return 0;
 }
 
 void i8086_t::write_sreg(byte sreg, uint16_t v) {
@@ -629,8 +631,9 @@ void i8086_t::write_sreg(byte sreg, uint16_t v) {
 		case SEG_CS: cs = v; break;
 		case SEG_SS: ss = v; break;
 		case SEG_DS: ds = v; break;
-		default: assert(0 && "invalid sreg");
+		default: break;
 	}
+	assert(0 && "invalid sreg");
 }
 
 byte i8086_t::get_sreg_ovr(byte sreg_def) {
@@ -2571,8 +2574,6 @@ void i8086_t::op_grp3_rmw() {
 				printf(!w ? "%02xh" : "%04xh", b);
 				printf("\n");
 			}
-
-			// unimplemented(__FUNCTION__, __LINE__);
 			break;
 		}
 		case 0b010: // not
@@ -2609,7 +2610,7 @@ void i8086_t::op_grp3_rmw() {
 				set_of(readhi(ax) != 0);
 				set_cf(readhi(ax) != 0);
 			} else {
-				uint32_t tmp = ax * src;
+				uint32_t tmp = (uint32_t)ax * (uint32_t)src;
 				dx = tmp >> 16;
 				ax = tmp & 0xffff;
 				set_of(dx != 0);

@@ -378,7 +378,7 @@ void dos_t::int21_34_get_indos_flag_pointer() {
 }
 
 void dos_t::int21_35_get_interrupt_vector() {
-//	unimplemented_int(__FUNCTION__);
+	// unimplemented_int(__FUNCTION__);
 	machine->cpu->es = 0xc7ff;
 	machine->cpu->bx = 0x0010;
 	printf("[%04x:%04x] Getting interrupt vector %02xh\n", machine->cpu->cs, machine->cpu->ip, readlo(machine->cpu->ax));
@@ -412,6 +412,7 @@ void dos_t::int21_3c_create_or_truncate_file() {
 	unimplemented_int(__FUNCTION__);
 }
 
+// TODO: Ugly hacks, easy to clean up
 int g_fd;
 
 void dos_t::int21_3d_open_file() {
