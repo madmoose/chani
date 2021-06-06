@@ -17,7 +17,9 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(3rdparty/glfw/)
 target_include_directories(chani PRIVATE 3rdparty/glfw/include/)
 target_sources(chani PRIVATE 3rdparty/imgui/examples/libs/gl3w/GL/gl3w.c)
-target_link_libraries(chani glfw)
+set(OpenGL_GL_PREFERENCE GLVND)
+find_package(OpenGL REQUIRED)
+target_link_libraries(chani OpenGL::GLX glfw)
 
 # ImGui
 add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GL3W)
