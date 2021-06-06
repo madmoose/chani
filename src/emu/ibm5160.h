@@ -1,8 +1,8 @@
 #ifndef EMU_IBM5160
 #define EMU_IBM5160
 
-#include "support/types.h"
 #include "emu/emu.h"
+#include "support/types.h"
 
 class bios_t;
 class dos_t;

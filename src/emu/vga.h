@@ -36,8 +36,10 @@ public:
 	uint64_t next_cycles();
 	uint64_t run_cycles(uint64_t cycles);
 
-	bool frame_ready() { return current_pel == v_sync_pels; }
+	bool frame_ready();
 
+	void read_rgba(byte *p, uint32_t addr, int w, int h);
+	void read_dac_ram(byte *p);
 	void write_ppm(uint32_t addr, int w, int h);
 
 	uint8_t read(address_space_t, uint32_t);

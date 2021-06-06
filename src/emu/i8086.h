@@ -30,7 +30,7 @@ public:
 	i8086_t();
 
 	double frequency_in_mhz() {
-		return 50.0;
+		return 5.0;
 	}
 
 	uint64_t next_cycles();

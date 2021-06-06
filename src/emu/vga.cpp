@@ -10,6 +10,8 @@ vga_t::vga_t() {
 
 	total_pels  = h_total * v_total;
 	v_sync_pels = h_total * v_sync_pulse;
+
+	memset(dac_ram, 0, sizeof(dac_ram));
 }
 
 uint64_t vga_t::next_cycles() {
@@ -38,10 +40,40 @@ uint64_t vga_t::run_cycles(uint64_t cycles) {
 	}
 
 	if (current_pel == v_sync_pels) {
-		write_ppm(0xa0000, 320, 200);
+		// write_ppm(0xa0000, 320, 200);
 	}
 
 	return total_pels - current_pel;
+}
+
+bool vga_t::frame_ready() {
+	return current_pel == v_sync_pels;
+}
+
+void vga_t::read_rgba(byte *p, uint32_t addr, int w, int h) {
+	static int frame_number;
+	static int next_frame_number = 0;
+	char filename[32];
+
+	frame_number = next_frame_number++;
+
+	for (int y = 0; y != h; ++y) {
+		for (int x = 0; x != w; ++x) {
+			int offset = w * y + x;
+			byte c = machine->memory[addr + offset];
+			byte r = dac_ram[3*c+0];
+			byte g = dac_ram[3*c+1];
+			byte b = dac_ram[3*c+2];
+			p[4 * offset + 0] = (r << 2) | (r >> 4);
+			p[4 * offset + 1] = (g << 2) | (g >> 4);
+			p[4 * offset + 2] = (b << 2) | (b >> 4);
+			p[4 * offset + 3] = 255;
+		}
+	}
+}
+
+void vga_t::read_dac_ram(byte *p) {
+	memcpy(p, dac_ram, 0x300);
 }
 
 byte frame[320*200*3];
