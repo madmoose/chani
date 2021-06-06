@@ -627,10 +627,10 @@ uint16_t i8086_t::read_sreg(byte sreg) {
 
 void i8086_t::write_sreg(byte sreg, uint16_t v) {
 	switch (sreg) {
-		case SEG_ES: es = v; break;
-		case SEG_CS: cs = v; break;
-		case SEG_SS: ss = v; break;
-		case SEG_DS: ds = v; break;
+		case SEG_ES: es = v; return;
+		case SEG_CS: cs = v; return;
+		case SEG_SS: ss = v; return;
+		case SEG_DS: ds = v; return;
 		default: break;
 	}
 	assert(0 && "invalid sreg");
