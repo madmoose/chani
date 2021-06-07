@@ -22,11 +22,13 @@ class machine_runner_t {
 	std::mutex  machine_mutex;
 	ibm5160_t  *machine;
 
-	std::thread *thread;
+	std::thread      *thread;
+	std::atomic_flag  stop_requested;
 public:
 	machine_runner_t(ibm5160_t *machine);
 
-	void start();
+	void stop();
+
 	void with_machine(const std::function<void(ibm5160_t *)> &f);
 
 	void run_until_next_event();

@@ -127,6 +127,8 @@ void main_window_t::loop() {
 
 		glfwSwapBuffers(window);
 	}
+
+	machine_runner->stop();
 }
 
 void main_window_t::uninitialize_imgui() {

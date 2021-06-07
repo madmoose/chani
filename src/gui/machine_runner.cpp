@@ -21,6 +21,12 @@ machine_runner_t::machine_runner_t(ibm5160_t *machine) :
 	thread = new std::thread(&machine_runner_t::loop, this);
 }
 
+void machine_runner_t::stop() {
+	if (!stop_requested.test_and_set()) {
+		thread->join();
+	}
+}
+
 void machine_runner_t::with_machine(const std::function<void(ibm5160_t *)> &f) {
 	std::lock_guard<std::mutex> lock(machine_mutex);
 	f(machine);
@@ -63,7 +69,7 @@ void machine_runner_t::loop() {
 	auto frame_start = std::chrono::steady_clock::now();
 
 	// TODO: Handle shutdown
-	for (;;) {
+	while (!stop_requested.test()) {
 		run_until_next_event();
 
 		if (machine->vga->frame_ready()) {
