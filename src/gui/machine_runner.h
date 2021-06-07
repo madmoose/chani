@@ -3,10 +3,10 @@
 
 #include "emu/device.h"
 
+#include <functional>
 #include <mutex>
 #include <thread>
 #include <vector>
-#include <functional>
 
 class ibm5160_t;
 

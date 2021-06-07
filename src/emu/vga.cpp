@@ -3,7 +3,6 @@
 #include "emu/ibm5160.h"
 
 #include <cstdio>
-
 #include <cstring>
 
 vga_t::vga_t() {

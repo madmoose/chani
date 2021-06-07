@@ -1,6 +1,6 @@
 #include "gui/texture.h"
 
-#include <stdlib.h>
+#include <cstdlib>
 
 texture_t::texture_t(int w, int h)
 	: texture_id(0), w(w), h(h)

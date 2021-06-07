@@ -3,8 +3,8 @@
 
 #include "support/reader.h"
 
-#include <string>
 #include <cstdio>
+#include <string>
 
 class file_reader_t : public reader_t {
 	FILE *f;

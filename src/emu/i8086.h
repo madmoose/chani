@@ -1,12 +1,12 @@
 #ifndef EMU_I8086
 #define EMU_I8086
 
-#include <functional>
-#include <vector>
-
 #include "emu/emu.h"
 #include "emu/device.h"
 #include "support/types.h"
+
+#include <functional>
+#include <vector>
 
 class ibm5160_t;
 

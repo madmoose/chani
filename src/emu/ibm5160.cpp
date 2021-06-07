@@ -1,16 +1,15 @@
 #include "ibm5160.h"
 
-#include <cstdio>
-#include <cstring>
-#include <cassert>
-
-#include "support/types.h"
-
 #include "bios/bios.h"
 #include "dos/dos.h"
 #include "emu/i8086.h"
 #include "emu/i8254_pit.h"
 #include "emu/vga.h"
+#include "support/types.h"
+
+#include <cassert>
+#include <cstdio>
+#include <cstring>
 
 #define MEMORY_SIZE     0x100000
 #define DIRTY_PAGE_SIZE     4096

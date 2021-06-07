@@ -72,7 +72,6 @@ void main_window_t::loop() {
 
 	// bool show_demo_window = true;
 
-	// TODO: Clean up machine_runner on shutdown
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 

@@ -2,7 +2,7 @@
 
 #include "support/file_reader.h"
 
-#include <stdio.h>
+#include <cstdio>
 
 #define SIG_MZ 0x4d5a
 #define SIG_NE 0x4e45

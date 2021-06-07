@@ -1,8 +1,8 @@
 #ifndef SUPPORT_MEM_WRITER_H
 #define SUPPORT_MEM_WRITER_H
 
-#include "support/writer.h"
 #include "support/seeker.h"
+#include "support/writer.h"
 
 #include <cassert>
 #include <cstring>

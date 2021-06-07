@@ -1,12 +1,12 @@
 #include "dos.h"
 
+#include "emu/i8086.h"
+#include "emu/ibm5160.h"
+
 #include <cassert>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
-
-#include "emu/i8086.h"
-#include "emu/ibm5160.h"
 
 #define CHANIDEBUG 0
 
@@ -423,10 +423,9 @@ void dos_t::int21_3d_open_file() {
 	}
 	filepath[len] = '\0';
 
-
-	// Compare the filepath with all the files in the current directory.
+	// Compare the requested filepath with all the files in the current
+	// directory, case-insensitively.
 	// TODO: Support and search folders
-
 	bool found_file = false;
 	std::filesystem::path path;
 	for (auto &p: std::filesystem::directory_iterator(".")) {

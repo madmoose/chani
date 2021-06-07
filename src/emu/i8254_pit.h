@@ -1,11 +1,11 @@
 #ifndef EMU_I8284_PIT
 #define EMU_I8284_PIT
 
-#include <functional>
-#include <vector>
-
 #include "emu/device.h"
 #include "support/types.h"
+
+#include <functional>
+#include <vector>
 
 class ibm5160_t;
 

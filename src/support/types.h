@@ -1,8 +1,8 @@
 #ifndef SUPPORT_TYPES_H
 #define SUPPORT_TYPES_H
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 
 typedef uint8_t byte;
 typedef unsigned int uint;

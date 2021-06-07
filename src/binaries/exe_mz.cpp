@@ -1,6 +1,6 @@
 #include "exe_mz.h"
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "support/file_reader.h"
 

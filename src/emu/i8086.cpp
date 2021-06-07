@@ -1,15 +1,14 @@
 #include "i8086.h"
 
+#include "ibm5160.h"
+
 #include <cassert>
 #include <cctype>
 #include <cstdio>
 #include <cstring>
-
 #include <map>
 #include <utility>
 #include <vector>
-
-#include "ibm5160.h"
 
 #define CHANIDEBUG 0
 #define CPULOG     0

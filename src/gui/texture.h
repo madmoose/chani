@@ -1,9 +1,9 @@
 #ifndef GUI_TEXTURE_H
 #define GUI_TEXTURE_H
 
-#include <GL/gl3w.h>
-
 #include "support/types.h"
+
+#include <GL/gl3w.h>
 
 class texture_t {
 	GLuint texture_id;

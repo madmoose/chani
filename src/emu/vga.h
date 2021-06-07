@@ -1,8 +1,8 @@
 #ifndef EMU_VGA_H
 #define EMU_VGA_H
 
-#include "emu/emu.h"
 #include "emu/device.h"
+#include "emu/emu.h"
 
 class vga_t : public device_t {
 	int h_visible_area = 640;
