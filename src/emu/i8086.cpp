@@ -2083,6 +2083,10 @@ void i8086_t::op_iret() {
 	cycles += 24;
 
 	call_stack.pop_back();
+
+	if (CHANIDEBUG) {
+		printf("iret\n");
+	}
 }
 
 inline void rolb(uint16_t &v, byte n = 1) {
