@@ -4,6 +4,8 @@
 
 #include <cstdio>
 
+#include <cstring>
+
 vga_t::vga_t() {
 	h_total = h_visible_area + h_front_porch + h_sync_pulse + h_back_porch;
 	v_total = v_visible_area + v_front_porch + v_sync_pulse + v_back_porch;

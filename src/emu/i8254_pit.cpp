@@ -3,6 +3,7 @@
 #include "emu/i8086.h"
 #include "emu/ibm5160.h"
 
+#include <cassert>
 #include <algorithm>
 #include <limits>
 
