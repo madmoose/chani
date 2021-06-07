@@ -2,7 +2,6 @@
 
 #include "emu/i8086.h"
 #include "emu/ibm5160.h"
-#include "support/file_reader.h"
 
 void dos_t::install() {
 	i8086_t *cpu = machine->cpu;

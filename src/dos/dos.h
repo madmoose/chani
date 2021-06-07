@@ -1,6 +1,9 @@
 #ifndef DOS_DOS_H
 #define DOS_DOS_H
 
+#include <cstdio>
+#include <vector>
+
 #include "support/types.h"
 
 class file_reader_t;
@@ -11,6 +14,9 @@ public:
 	ibm5160_t *machine = nullptr;
 
 	bool ctrl_break = true;
+
+	std::vector<FILE *> open_files;
+	const int first_fd = 3;
 
 public:
 	void unimplemented_int(const char *op_name);

@@ -1,16 +1,12 @@
 #include "dos.h"
 
 #include <cassert>
-#include <string.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <map>
+#include <cstdio>
+#include <cstring>
+#include <filesystem>
+
 #include "emu/i8086.h"
 #include "emu/ibm5160.h"
-
-std::map<int, int> fd_map;
-int next_dos_fd = 5;
 
 #define CHANIDEBUG 0
 
@@ -414,9 +410,6 @@ void dos_t::int21_3c_create_or_truncate_file() {
 	unimplemented_int(__FUNCTION__);
 }
 
-// TODO: Ugly hacks, easy to clean up
-int g_fd;
-
 void dos_t::int21_3d_open_file() {
 	byte filepath[257];
 
@@ -430,19 +423,43 @@ void dos_t::int21_3d_open_file() {
 	}
 	filepath[len] = '\0';
 
-	// printf("Attempting to open file: %s\n", filepath);
-	if (strcmp((char*)filepath, "dune.dat") == 0) {
-		int fd = open("DUNE.DAT", O_RDONLY);
-		assert(fd > 0);
-		fd_map.insert(std::make_pair(next_dos_fd, fd));
 
-		clc();
-		machine->cpu->ax = next_dos_fd++;
-	} else {
+	// Compare the filepath with all the files in the current directory.
+	// TODO: Support and search folders
+
+	bool found_file = false;
+	std::filesystem::path path;
+	for (auto &p: std::filesystem::directory_iterator(".")) {
+		path = p.path();
+		std::string path_str = path.filename().string();
+
+		bool equal = std::equal(
+			path_str.begin(), path_str.end(),
+			filepath, filepath+len,
+			[](char a, char b) {
+				return tolower(a) == tolower(b);
+			}
+		);
+		if (equal) {
+			found_file = true;
+			break;
+		}
+	}
+
+	if (!found_file) {
 		stc();
 		machine->cpu->ax = 0x02;
+		return;
 	}
-	// unimplemented_int(__FUNCTION__);
+
+	FILE *f = fopen(path.c_str(), "rb");
+	assert(f);
+
+	int fd = open_files.size() + first_fd;
+	open_files.push_back(f);
+
+	clc();
+	machine->cpu->ax = fd;
 }
 
 void dos_t::int21_3e_close_file() {
@@ -450,16 +467,15 @@ void dos_t::int21_3e_close_file() {
 }
 
 void dos_t::int21_3f_read_file_or_device() {
-	// unimplemented_int(__FUNCTION__);
-	int       fd    = fd_map.at(machine->cpu->bx);
+	FILE     *f     = open_files.at(machine->cpu->bx - first_fd);
 	uint16_t  count = machine->cpu->cx;
 	byte     *buf   = machine->memory + (0x10 * machine->cpu->ds + machine->cpu->dx);
 
-	size_t position = lseek(fd, 0, SEEK_CUR);
-	(void)position;
+	assert(f);
+
 	ssize_t remain = count;
 	while (remain > 0) {
-		ssize_t r = read(fd, buf, remain);
+		ssize_t r = fread(buf, 1, remain, f);
 		if (r <= 0) {
 			printf("Failed to read %d bytes\n", (int)remain);
 			exit(1);
@@ -469,8 +485,9 @@ void dos_t::int21_3f_read_file_or_device() {
 	}
 
 	if (CHANIDEBUG) {
-		printf("Read %d (0x%x) bytes from %d offset %d to %04x:%04x-%04x:%04x\n",
-			count, count, fd, (int)position,
+		long position = ftell(f);
+		printf("Read %d (0x%x) bytes from %d offset %ld to %04x:%04x-%04x:%04x\n",
+			count, count, machine->cpu->bx, position - count,
 			machine->cpu->ds, machine->cpu->dx,
 			machine->cpu->ds, machine->cpu->dx + count
 		);
@@ -502,7 +519,9 @@ void dos_t::int21_41_delete_file() {
 }
 
 void dos_t::int21_42_move_file_pointer() {
-	int fd = fd_map.at(machine->cpu->bx);
+	FILE *f = open_files.at(machine->cpu->bx - first_fd);
+
+	assert(f);
 
 	int whence;
 	switch (readlo(machine->cpu->ax)) {
@@ -516,15 +535,14 @@ void dos_t::int21_42_move_file_pointer() {
 	}
 
 	size_t offset = (((uint32_t)machine->cpu->cx) << 16) + machine->cpu->dx;
-	size_t result = lseek(fd, offset, whence);
+	size_t result = fseek(f, offset, whence);
+	assert(result == 0);
 
-	if (CHANIDEBUG) {
-		printf("Seek %d to %d [%04x%04x] (%xh), got offset 0x%4x\n", fd, int(offset), machine->cpu->cx, machine->cpu->dx, whence, int(result));
-	}
+	size_t position = ftell(f);
 
 	clc();
-	machine->cpu->dx = (result >> 16);
-	machine->cpu->ax = (result >>  0) & 0xffff;
+	machine->cpu->dx = (position >> 16);
+	machine->cpu->ax = (position >>  0) & 0xffff;
 }
 
 void dos_t::int21_43_get_or_set_file_attributes() {
