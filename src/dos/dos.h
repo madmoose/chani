@@ -18,6 +18,10 @@ public:
 	std::vector<FILE *> open_files;
 	const int first_fd = 3;
 
+	uint16_t mouse_x = 0;
+	uint16_t mouse_y = 0;
+	uint16_t mouse_buttons = 0;
+
 public:
 	void unimplemented_int(const char *op_name);
 
@@ -25,6 +29,8 @@ public:
 
 	void build_psp(uint16_t psp_segment);
 	bool exec(file_reader_t &rd);
+
+	void set_mouse(uint16_t x, uint16_t y, uint16_t buttons);
 
 	void int21();
 	void int33();

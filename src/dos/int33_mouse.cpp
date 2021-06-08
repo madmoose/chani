@@ -3,6 +3,8 @@
 #include "emu/i8086.h"
 #include "emu/ibm5160.h"
 
+#include <algorithm>
+
 void dos_t::int33() {
 	switch (machine->cpu->ax) {
 		case 0x0000: int33_0000_reset_driver_and_read_status(); break;
@@ -27,6 +29,12 @@ void dos_t::int33() {
 	machine->cpu->op_iret();
 }
 
+void dos_t::set_mouse(uint16_t x, uint16_t y, uint16_t buttons) {
+	mouse_x = std::clamp<uint16_t>(x, 0, 639);
+	mouse_y = std::clamp<uint16_t>(y, 0, 199);
+	mouse_buttons = buttons;
+}
+
 void dos_t::int33_0000_reset_driver_and_read_status() {
 	// unimplemented_int(__FUNCTION__);
 	machine->cpu->ax = 0xffff;
@@ -41,13 +49,10 @@ void dos_t::int33_0002_hide_mouse_cursor() {
 	unimplemented_int(__FUNCTION__);
 }
 
-uint16_t mouse_x = 0;
-uint16_t mouse_y = 0;
-
 void dos_t::int33_0003_return_position_and_button_status() {
 	machine->cpu->cx = mouse_x & 0xfffe;
 	machine->cpu->dx = mouse_y;
-	machine->cpu->bx = 0;
+	machine->cpu->bx = mouse_buttons;
 }
 
 void dos_t::int33_0004_position_mouse_cursor() {
