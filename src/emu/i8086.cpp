@@ -2096,14 +2096,17 @@ void i8086_t::op_iret() {
 	}
 }
 
-inline void rolb(uint16_t &v, byte n = 1) {
+// TODO: Rotates also need to update OF
+inline void rolb(uint16_t &v, bool &cf, byte n = 1) {
 	while (n--) {
+		cf = !!(v & 0x80);
 		v = (v << 1) | ((v & 0x80) ? 0x01 : 0x00);
 	}
 }
 
-inline void rorb(uint16_t &v, byte n = 1) {
+inline void rorb(uint16_t &v, bool &cf, byte n = 1) {
 	while (n--) {
+		cf = !!(v & 0x01);
 		v = ((v & 0x01) ? 0x80 : 0x00) | (v >> 1);
 	}
 }
@@ -2154,14 +2157,16 @@ inline void sarb(uint16_t &v, bool &cf, byte n = 1) {
 	}
 }
 
-inline void rolw(uint16_t &v, byte n = 1) {
+inline void rolw(uint16_t &v, bool &cf, byte n = 1) {
 	while (n--) {
-		v = (v << 1) | ((v & 0x80) ? 0x01 : 0x00);
+		cf = !!(v & 0x8000);
+		v = (v << 1) | ((v & 0x8000) ? 0x01 : 0x00);
 	}
 }
 
-inline void rorw(uint16_t &v, byte n = 1) {
+inline void rorw(uint16_t &v, bool &cf, byte n = 1) {
 	while (n--) {
+		cf = v & 1;
 		v = ((v & 0x0001) ? 0x8000 : 0x0000) | (v >> 1);
 	}
 }
@@ -2200,7 +2205,7 @@ inline void shrw(uint16_t &v, bool &cf, byte n = 1) {
 
 inline void salw(uint16_t &v, bool &cf, byte n = 1) {
 	while (n--) {
-		cf = !!(v & 0x80);
+		cf = !!(v & 0x8000);
 		v = (v << 1);
 	}
 }
@@ -2243,8 +2248,8 @@ void i8086_t::op_grp2_rmw() {
 	bool cf = flags & FLAG_CF;
 	if (!w) {
 		switch (func) {
-			case 0: rolb(res, n);     break;
-			case 1: rorb(res, n);     break;
+			case 0: rolb(res, cf, n); break;
+			case 1: rorb(res, cf, n); break;
 			case 2: rclb(res, cf, n); break;
 			case 3: rcrb(res, cf, n); break;
 			case 4: shlb(res, cf, n); break;
@@ -2259,8 +2264,8 @@ void i8086_t::op_grp2_rmw() {
 		}
 	} else {
 		switch (func) {
-			case 0: rolw(res, n);     break;
-			case 1: rorw(res, n);     break;
+			case 0: rolw(res, cf, n); break;
+			case 1: rorw(res, cf, n); break;
 			case 2: rclw(res, cf, n); break;
 			case 3: rcrw(res, cf, n); break;
 			case 4: shlw(res, cf, n); break;
