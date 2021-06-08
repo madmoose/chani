@@ -407,11 +407,32 @@ void dos_t::int21_3b_change_current_directory() {
 }
 
 void dos_t::int21_3c_create_or_truncate_file() {
-	unimplemented_int(__FUNCTION__);
+	char filepath[257];
+
+	int len = 0;
+	uint16_t ds = machine->cpu->ds;
+	uint16_t dx = machine->cpu->dx;
+	byte c;
+
+	while (len < 256 && (c = machine->read(MEM, 0x10*ds + dx++))) {
+		filepath[len++] = c;
+	}
+	filepath[len] = '\0';
+
+	printf("Opening file '%s'\n", filepath);
+
+	FILE *f = fopen(filepath, "wb");
+	assert(f);
+
+	int fd = open_files.size() + first_fd;
+	open_files.push_back(f);
+
+	clc();
+	machine->cpu->ax = fd;
 }
 
 void dos_t::int21_3d_open_file() {
-	byte filepath[257];
+	char filepath[257];
 
 	int len = 0;
 	uint16_t ds = machine->cpu->ds;
@@ -462,7 +483,17 @@ void dos_t::int21_3d_open_file() {
 }
 
 void dos_t::int21_3e_close_file() {
-	unimplemented_int(__FUNCTION__);
+	FILE *f = open_files.at(machine->cpu->bx - first_fd);
+
+	assert(f);
+
+	int r = fclose(f);
+	if (r != 0) {
+		stc();
+		return;
+	}
+
+	stc();
 }
 
 void dos_t::int21_3f_read_file_or_device() {
@@ -510,7 +541,16 @@ void dos_t::int21_3f_read_file_or_device() {
 }
 
 void dos_t::int21_40_write_file_or_device() {
-	unimplemented_int(__FUNCTION__);
+	FILE     *f = open_files.at(machine->cpu->bx - first_fd);
+	uint16_t  count = machine->cpu->cx;
+	byte     *buf   = machine->memory + (0x10 * machine->cpu->ds + machine->cpu->dx);
+
+	assert(f);
+
+	uint16_t bytes_written = fwrite(buf, 1, count, f);
+
+	clc();
+	machine->cpu->ax = bytes_written;
 }
 
 void dos_t::int21_41_delete_file() {
