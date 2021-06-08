@@ -1,4 +1,4 @@
-#include "dos.h"
+#include "dos/dos.h"
 
 #include "emu/i8086.h"
 #include "emu/ibm5160.h"
@@ -472,7 +472,11 @@ void dos_t::int21_3d_open_file() {
 		return;
 	}
 
+#ifdef _MSC_VER
+	FILE* f = _wfopen(path.c_str(), L"rb");
+#else
 	FILE *f = fopen(path.c_str(), "rb");
+#endif
 	assert(f);
 
 	int fd = open_files.size() + first_fd;
@@ -503,10 +507,10 @@ void dos_t::int21_3f_read_file_or_device() {
 
 	assert(f);
 
-	ssize_t remain = count;
+	size_t remain = count;
 	while (remain > 0) {
-		ssize_t r = fread(buf, 1, remain, f);
-		if (r <= 0) {
+		size_t r = fread(buf, 1, remain, f);
+		if (r == 0 && !feof(f)) {
 			printf("Failed to read %d bytes\n", (int)remain);
 			exit(1);
 		}

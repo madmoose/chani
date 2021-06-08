@@ -15,7 +15,7 @@
 #define DIRTY_PAGE_SIZE     4096
 
 ibm5160_t::ibm5160_t() {
-	memory = (byte *)std::aligned_alloc(0x1000, MEMORY_SIZE);
+	memory = (byte *)malloc(MEMORY_SIZE);
 	memset(memory, 0, MEMORY_SIZE);
 
 	cpu = new i8086_t;

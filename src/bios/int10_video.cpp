@@ -4,6 +4,8 @@
 #include "emu/ibm5160.h"
 #include "support/types.h"
 
+#include <cctype>
+
 void bios_t::int10() {
 	byte ah = readhi(machine->cpu->ax);
 
