@@ -572,6 +572,14 @@ uint16_t sext(byte v) {
 	return v;
 }
 
+inline
+uint32_t sext16(uint16_t v) {
+	if (v & 0x8000) {
+		return 0xffff0000 | uint32_t(v);
+	}
+	return v;
+}
+
 void i8086_t::push(uint16_t v) {
 	sp -= 2;
 	mem_write16(ss, sp, v);
@@ -2281,7 +2289,16 @@ void i8086_t::op_grp2_rmw() {
 }
 
 void i8086_t::op_aam() {
-	unimplemented(__FUNCTION__, __LINE__);
+	uint8_t imm = fetch8();
+	uint8_t tmp_al = readlo(ax);
+	writehi(ax, tmp_al / imm);
+	writelo(ax, tmp_al % imm);
+
+	uint8_t al = readlo(ax);
+	set_pf(pf8(al));
+	set_zf(zf8(al));
+	set_sf(sf8(al));
+
 	cycles += 83;
 }
 
@@ -2538,6 +2555,15 @@ void i8086_t::op_cmc() {
 }
 
 static inline
+int8_t utos8(uint8_t v) {
+	if ((v & 0x80) == 0) {
+		return int8_t(v);
+	} else {
+		return int8_t(~(v | 0x7fu)) - 1;
+	}
+}
+
+static inline
 int16_t utos16(uint16_t v) {
 	if ((v & 0x8000) == 0) {
 		return int16_t(v);
@@ -2561,6 +2587,8 @@ void i8086_t::op_grp3_rmw() {
 	byte func   = (modrm >> 3) & 0b111;
 	modrm_t mem = modrm_mem_sw(modrm, false, w);
 	uint16_t res, src;
+
+	// TODO: Clean this up, move cases to functions.
 	switch (func) {
 		case 0b000: // test
 		case 0b001: {
@@ -2628,12 +2656,35 @@ void i8086_t::op_grp3_rmw() {
 			}
 			break;
 		case 0b101: // imul
+			src = read_modrm(mem);
+			if (!w) {
+				uint16_t tmp_xp = utos8(readlo(ax)) * utos8(src);
+				ax = tmp_xp;
+				if (sext(readlo(tmp_xp)) == tmp_xp) {
+					set_cf(false);
+					set_of(false);
+				} else {
+					set_cf(true);
+					set_of(true);
+				}
+			} else {
+				uint32_t tmp_xp = utos16(ax) * utos16(src);
+				ax = ((tmp_xp >>  0) & 0xffff);
+				dx = ((tmp_xp >> 16) & 0xffff);
+				if (sext16(ax) == tmp_xp) {
+					set_cf(false);
+					set_of(false);
+				} else {
+					set_cf(true);
+					set_of(true);
+				}
+			}
+
 			if (CHANIDEBUG) {
 				printf("imul\t");
 				mem.print();
 				printf("\n");
 			}
-			unimplemented(__FUNCTION__, __LINE__);
 			break;
 		case 0b110: // div
 			src = read_modrm(mem);
