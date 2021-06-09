@@ -1248,9 +1248,7 @@ void i8086_t::op_daa() {
 	uint8_t al = readlo(ax);
 	bool    af = !!(flags & FLAG_AF);
 	bool    cf = !!(flags & FLAG_CF);
-
 	uint8_t old_al = al;
-	bool    old_cf = cf;
 
 	if ((al & 0x0f) > 9 || af) {
 		al = al + 6;
@@ -1258,7 +1256,7 @@ void i8086_t::op_daa() {
 	} else {
 		af = 0;
 	}
-	if ((old_al > 0x9f) || old_cf) {
+	if ((old_al > 0x9f) || cf) {
 		al += 0x60;
 		cf = 1;
 	} else {
@@ -1320,7 +1318,27 @@ void i8086_t::op_seg_ovr_ss() {
 }
 
 void i8086_t::op_aaa() {
-	unimplemented(__FUNCTION__, __LINE__);
+	uint8_t al = readlo(ax);
+	bool    af = get_af();
+	bool    cf;
+
+	if ((al & 0x0f) > 9 || af) {
+		ax += 0x106;
+		af = 1;
+		cf = 1;
+	} else {
+		af = 0;
+		cf = 0;
+	}
+	al &= 0x0f;
+
+	set_cf(cf);
+	set_pf(pf8(al));
+	set_af(af);
+	set_zf(zf8(al));
+	set_sf(sf8(al));
+	writelo(ax, al);
+
 	cycles += 4;
 }
 
@@ -1333,7 +1351,27 @@ void i8086_t::op_seg_ovr_ds() {
 }
 
 void i8086_t::op_aas() {
-	unimplemented(__FUNCTION__, __LINE__);
+	uint8_t al = readlo(ax);
+	bool    af = get_af();
+	bool    cf;
+
+	if ((al & 0x0f) > 9 || af) {
+		ax -= 6;
+		writehi(ax, readhi(ax) - 1);
+		af = 1;
+		cf = 1;
+	} else {
+		cf = 0;
+		af = 0;
+	}
+
+	set_cf(cf);
+	set_pf(pf8(al));
+	set_af(af);
+	set_zf(zf8(al));
+	set_sf(sf8(al));
+	writelo(ax, readlo(ax) & 0x0f);
+
 	cycles += 4;
 }
 
@@ -2308,7 +2346,19 @@ void i8086_t::op_aam() {
 }
 
 void i8086_t::op_aad() {
-	unimplemented(__FUNCTION__, __LINE__);
+	uint8_t imm = fetch8();
+	uint8_t tmp_al = readlo(ax);
+	uint8_t tmp_ah = readhi(ax);
+
+	uint8_t al = (tmp_al + (tmp_ah * imm)) & 0xff;
+
+	writehi(ax, 0);
+	writelo(ax, al);
+
+	set_pf(pf8(al));
+	set_zf(zf8(al));
+	set_sf(sf8(al));
+
 	cycles += 60;
 }
 
@@ -2546,7 +2596,8 @@ void i8086_t::op_rep() {
 }
 
 void i8086_t::op_hlt() {
-	unimplemented(__FUNCTION__, __LINE__);
+	cycles += 2;
+	// unimplemented(__FUNCTION__, __LINE__);
 }
 
 void i8086_t::op_cmc() {
