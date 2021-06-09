@@ -264,8 +264,7 @@ public:
 	void op_pop_reg();
 	void op_jcc();
 	void op_grp1_rmw_imm();
-	void op_test_rm8_r8();
-	void op_test_rm16_r16();
+	void op_test_rm_r();
 	void op_xchg_rm_r();
 	void op_mov_rm_r();
 	void op_mov_rm16_sreg();

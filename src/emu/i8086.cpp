@@ -318,8 +318,8 @@ uint32_t i8086_t::dispatch() {
 		OPCODE(0x81, grp1_rmw_imm);
 		OPCODE(0x82, grp1_rmw_imm);
 		OPCODE(0x83, grp1_rmw_imm);
-		OPCODE(0x84, test_rm8_r8);
-		OPCODE(0x85, test_rm16_r16);
+		OPCODE(0x84, test_rm_r);
+		OPCODE(0x85, test_rm_r);
 		OPCODE(0x86, xchg_rm_r);
 		OPCODE(0x87, xchg_rm_r);
 		OPCODE(0x88, mov_rm_r);
@@ -1526,12 +1526,25 @@ void i8086_t::op_grp1_rmw_imm() {
 	}
 }
 
-void i8086_t::op_test_rm8_r8() {
-	unimplemented(__FUNCTION__, __LINE__);
-}
+void i8086_t::op_test_rm_r() {
+	bool w     = !!(op & 0b01);
+	byte modrm = fetch8();
 
-void i8086_t::op_test_rm16_r16() {
-	unimplemented(__FUNCTION__, __LINE__);
+	modrm_t mem = modrm_mem_sw(modrm, false, w);
+	modrm_t reg = modrm_reg_sw(modrm, false, w);
+
+	uint16_t a = read_modrm(mem);
+	uint16_t b = read_modrm(reg);
+
+	(void)alu_w(ALU_AND, a, b, w);
+
+	if (CHANIDEBUG) {
+		printf("test\t");
+		mem.print();
+		printf(", ");
+		reg.print();
+		printf("\n");
+	}
 }
 
 void i8086_t::op_xchg_rm_r() {
@@ -1858,7 +1871,6 @@ inst:
 }
 
 void i8086_t::op_test_a_imm() {
-	// unimplemented(__FUNCTION__, __LINE__);
 	bool w = op & 1;
 	uint16_t imm = fetch(w);
 
