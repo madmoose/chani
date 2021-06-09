@@ -2629,7 +2629,7 @@ int8_t utos8(uint8_t v) {
 	if ((v & 0x80) == 0) {
 		return int8_t(v);
 	} else {
-		return int8_t(~(v | 0x7fu)) - 1;
+		return -int8_t((~(v - 1)) & 0xff);
 	}
 }
 
@@ -2638,7 +2638,7 @@ int16_t utos16(uint16_t v) {
 	if ((v & 0x8000) == 0) {
 		return int16_t(v);
 	} else {
-		return int16_t(~(v | 0x7fffu)) - 1;
+		return -int32_t((~(v - 1)) & 0xffff);
 	}
 }
 
@@ -2647,7 +2647,7 @@ int32_t utos32(uint32_t v) {
 	if ((v & 0x80000000) == 0) {
 		return int32_t(v);
 	} else {
-		return int32_t(~(v | 0x7fffffffu)) - 1;
+		return -int32_t((~(v - 1)) & 0xffffffff);
 	}
 }
 
