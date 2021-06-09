@@ -858,8 +858,8 @@ uint16_t i8086_t::alu_w(byte func, uint16_t a, uint16_t b, bool w) {
 		switch (func) {
 			case ALU_ADD: update_flags_add8(res, a, b); break;
 			case ALU_OR:  update_flags_bin8(res, a, b); break;
-			case ALU_ADC: update_flags_add8(res, a, b); break;
-			case ALU_SBB: update_flags_sub8(res, a, b); break;
+			case ALU_ADC: update_flags_add8(res, a, b, c); break;
+			case ALU_SBB: update_flags_sub8(res, a, b, c); break;
 			case ALU_AND: update_flags_bin8(res, a, b); break;
 			case ALU_SUB: update_flags_sub8(res, a, b); break;
 			case ALU_XOR: update_flags_bin8(res, a, b); break;
@@ -869,8 +869,8 @@ uint16_t i8086_t::alu_w(byte func, uint16_t a, uint16_t b, bool w) {
 		switch (func) {
 			case ALU_ADD: update_flags_add16(res, a, b); break;
 			case ALU_OR:  update_flags_bin16(res, a, b); break;
-			case ALU_ADC: update_flags_add16(res, a, b); break;
-			case ALU_SBB: update_flags_sub16(res, a, b); break;
+			case ALU_ADC: update_flags_add16(res, a, b, c); break;
+			case ALU_SBB: update_flags_sub16(res, a, b, c); break;
 			case ALU_AND: update_flags_bin16(res, a, b); break;
 			case ALU_SUB: update_flags_sub16(res, a, b); break;
 			case ALU_XOR: update_flags_bin16(res, a, b); break;
@@ -911,32 +911,32 @@ inline bool signbit16(uint16_t v) {
  * Carry
  */
 
-inline bool cf8_add(uint16_t res, uint16_t dst, uint16_t src) {
+inline bool cf8_add(uint16_t res, uint16_t dst, uint16_t src, bool cf) {
 	(void)src;
-	return readlo(res) < readlo(dst);
+	return readlo(res) < readlo(dst) + readlo(src) + cf;
 }
 
-inline bool cf16_add(uint16_t res, uint16_t dst, uint16_t src) {
+inline bool cf16_add(uint16_t res, uint16_t dst, uint16_t src, bool cf) {
 	(void)src;
-	return res < dst;
+	return res < dst + src + cf;
 }
 
-inline bool cf_w_add(uint16_t res, uint16_t dst, uint16_t src, bool w) {
-	return !w ? cf8_add(res, dst, src) : cf16_add(res, dst, src);
+inline bool cf_w_add(uint16_t res, uint16_t dst, uint16_t src, bool cf, bool w) {
+	return !w ? cf8_add(res, dst, src, cf) : cf16_add(res, dst, src, cf);
 }
 
-inline bool cf8_sub(uint16_t res, uint16_t dst, uint16_t src) {
+inline bool cf8_sub(uint16_t res, uint16_t dst, uint16_t src, bool cf) {
 	(void)res;
-	return readlo(dst) < readlo(src);
+	return readlo(dst) < readlo(src) + cf;
 }
 
-inline bool cf16_sub(uint16_t res, uint16_t dst, uint16_t src) {
+inline bool cf16_sub(uint16_t res, uint16_t dst, uint16_t src, bool cf) {
 	(void)res;
-	return dst < src;
+	return dst < src + cf;
 }
 
-inline bool cf_w_sub(uint16_t res, uint16_t dst, uint16_t src, bool w) {
-	return !w ? cf8_sub(res, dst, src) : cf16_sub(res, dst, src);
+inline bool cf_w_sub(uint16_t res, uint16_t dst, uint16_t src, bool cf, bool w) {
+	return !w ? cf8_sub(res, dst, src, cf) : cf16_sub(res, dst, src, cf);
 }
 
 /*
@@ -1033,8 +1033,8 @@ inline bool of_w_sub(uint16_t res, uint16_t dst, uint16_t src, bool w) {
 	return !w ? of8_sub(res, dst, src) : of16_sub(res, dst, src);
 }
 
-void i8086_t::update_flags_add8(uint8_t res, uint8_t dst, uint8_t src) {
-	set_cf(cf8_add(res, dst, src));
+void i8086_t::update_flags_add8(uint8_t res, uint8_t dst, uint8_t src, bool cf) {
+	set_cf(cf8_add(res, dst, src, cf));
 	set_pf(pf8(res));
 	set_af(af8(res, dst, src));
 	set_zf(zf8(res));
@@ -1042,8 +1042,8 @@ void i8086_t::update_flags_add8(uint8_t res, uint8_t dst, uint8_t src) {
 	set_of(of8_add(res, dst, src));
 }
 
-void i8086_t::update_flags_sub8(uint8_t res, uint8_t dst, uint8_t src) {
-	set_cf(cf8_sub(res, dst, src));
+void i8086_t::update_flags_sub8(uint8_t res, uint8_t dst, uint8_t src, bool cf) {
+	set_cf(cf8_sub(res, dst, src, cf));
 	set_pf(pf8(res));
 	set_af(af8(res, dst, src));
 	set_zf(zf8(res));
@@ -1075,8 +1075,8 @@ void i8086_t::update_flags_rot8(uint8_t res, uint8_t src, bool cf) {
 	set_of((res & 0x80) != (src & 0x80));
 }
 
-void i8086_t::update_flags_add16(uint16_t res, uint16_t dst, uint16_t src) {
-	set_cf(cf16_add(res, dst, src));
+void i8086_t::update_flags_add16(uint16_t res, uint16_t dst, uint16_t src, bool cf) {
+	set_cf(cf16_add(res, dst, src, cf));
 	set_pf(pf16(res));
 	set_af(af16(res, dst, src));
 	set_zf(zf16(res));
@@ -1084,8 +1084,8 @@ void i8086_t::update_flags_add16(uint16_t res, uint16_t dst, uint16_t src) {
 	set_of(of16_add(res, dst, src));
 }
 
-void i8086_t::update_flags_sub16(uint16_t res, uint16_t dst, uint16_t src) {
-	set_cf(cf16_sub(res, dst, src));
+void i8086_t::update_flags_sub16(uint16_t res, uint16_t dst, uint16_t src, bool cf) {
+	set_cf(cf16_sub(res, dst, src, cf));
 	set_pf(pf16(res));
 	set_af(af16(res, dst, src));
 	set_zf(zf16(res));

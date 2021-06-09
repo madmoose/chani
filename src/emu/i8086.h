@@ -232,13 +232,13 @@ public:
 
 	uint16_t alu_w(byte func, uint16_t a, uint16_t b, bool w);
 
-	void update_flags_add8(uint8_t res, uint8_t dst, uint8_t src);
-	void update_flags_sub8(uint8_t res, uint8_t dst, uint8_t src);
+	void update_flags_add8(uint8_t res, uint8_t dst, uint8_t src, bool cf = 0);
+	void update_flags_sub8(uint8_t res, uint8_t dst, uint8_t src, bool cf = 0);
 	void update_flags_bin8(uint8_t res, uint8_t dst, uint8_t src);
 	void update_flags_shf8(uint8_t res, uint8_t src, bool cf);
 	void update_flags_rot8(uint8_t res, uint8_t src, bool cf);
-	void update_flags_add16(uint16_t res, uint16_t dst, uint16_t src);
-	void update_flags_sub16(uint16_t res, uint16_t dst, uint16_t src);
+	void update_flags_add16(uint16_t res, uint16_t dst, uint16_t src, bool cf = 0);
+	void update_flags_sub16(uint16_t res, uint16_t dst, uint16_t src, bool cf = 0);
 	void update_flags_bin16(uint16_t res, uint16_t dst, uint16_t src);
 	void update_flags_shf16(uint16_t res, uint16_t src, bool cf);
 	void update_flags_rot16(uint16_t res, uint16_t src, bool cf);
