@@ -1808,8 +1808,8 @@ inst:
 void i8086_t::op_cmps() {
 	bool     w      = !!(op & 1);
 	int      delta  = strop_delta(w);
-	uint16_t di_seg = read_sreg_ovr(SEG_ES);
-	uint16_t si_seg = read_sreg(SEG_DS);
+	uint16_t si_seg = read_sreg_ovr(SEG_DS);
+	uint16_t di_seg = read_sreg(SEG_ES);
 
 	if (repmode == REP_NONE) {
 		cycles += 9;
@@ -1891,7 +1891,7 @@ repeat:
 	// TODO: Service interrupts
 	--cx;
 inst:
-	mem_write(read_sreg_ovr(SEG_ES), di, v, w);
+	mem_write(read_sreg(SEG_ES), di, v, w);
 	di += delta;
 
 	cycles += 10;
@@ -1907,8 +1907,9 @@ inst:
 
 void i8086_t::op_lods() {
 	bool     w     = op & 1;
-	uint16_t v     = mem_read(read_sreg_ovr(SEG_DS), si, w);
+	uint16_t seg   = read_sreg_ovr(SEG_DS);
 	int      delta = strop_delta(w);
+	uint16_t v;
 
 	if (repmode != REP_NONE) {
 		cycles += 9;
@@ -1926,6 +1927,7 @@ repeat:
 	// TODO: Service interrupts
 	--cx;
 inst:
+	v = mem_read(seg, si, w);
 	write_reg(REG_AX, v, w);
 	si += delta;
 
