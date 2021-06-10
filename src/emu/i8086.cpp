@@ -2626,29 +2626,26 @@ void i8086_t::op_cmc() {
 
 static inline
 int8_t utos8(uint8_t v) {
-	if ((v & 0x80) == 0) {
-		return int8_t(v);
-	} else {
-		return -int8_t((~(v - 1)) & 0xff);
+	if (v <= INT8_MAX) {
+		return static_cast<int8_t>(v);
 	}
+	return static_cast<int8_t>(v - INT8_MIN) + INT8_MIN;
 }
 
 static inline
 int16_t utos16(uint16_t v) {
-	if ((v & 0x8000) == 0) {
-		return int16_t(v);
-	} else {
-		return -int32_t((~(v - 1)) & 0xffff);
+	if (v <= INT16_MAX) {
+		return static_cast<int16_t>(v);
 	}
+	return static_cast<int16_t>(v - INT16_MIN) + INT16_MIN;
 }
 
 static inline
 int32_t utos32(uint32_t v) {
-	if ((v & 0x80000000) == 0) {
-		return int32_t(v);
-	} else {
-		return -int32_t((~(v - 1)) & 0xffffffff);
+	if (v <= INT32_MAX) {
+		return static_cast<int32_t>(v);
 	}
+	return static_cast<int32_t>(v - INT32_MIN) + INT32_MIN;
 }
 
 void i8086_t::op_grp3_rmw() {
@@ -2728,8 +2725,9 @@ void i8086_t::op_grp3_rmw() {
 		case 0b101: // imul
 			src = read_modrm(mem);
 			if (!w) {
-				uint16_t tmp_xp = utos8(readlo(ax)) * utos8(src);
+				uint16_t tmp_xp = int16_t(utos8(readlo(ax))) * int16_t(utos8(src));
 				ax = tmp_xp;
+
 				if (sext(readlo(tmp_xp)) == tmp_xp) {
 					set_cf(false);
 					set_of(false);
@@ -2738,7 +2736,7 @@ void i8086_t::op_grp3_rmw() {
 					set_of(true);
 				}
 			} else {
-				uint32_t tmp_xp = utos16(ax) * utos16(src);
+				int32_t tmp_xp = int32_t(utos16(ax)) * int32_t(utos16(src));
 				ax = ((tmp_xp >>  0) & 0xffff);
 				dx = ((tmp_xp >> 16) & 0xffff);
 				if (sext16(ax) == tmp_xp) {
