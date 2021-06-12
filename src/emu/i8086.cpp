@@ -2801,7 +2801,7 @@ void i8086_t::op_grp3_rmw() {
 
 			if (!w) {
 				int16_t dividend = utos16(ax);
-				int16_t divisor  = utos16(src);
+				int8_t  divisor  = utos8(src);
 
 				if (dividend == 0x7fff && divisor == -1) {
 					call_int(0);
@@ -2811,7 +2811,7 @@ void i8086_t::op_grp3_rmw() {
 				int16_t quotient  = dividend / divisor;
 				int16_t remainder = dividend % divisor;
 
-				if (quotient > 0xff) {
+				if (quotient > INT8_MAX || quotient < INT8_MIN) {
 					call_int(0);
 					return;
 				}
@@ -2820,17 +2820,17 @@ void i8086_t::op_grp3_rmw() {
 				writehi(ax, remainder);
 			} else {
 				int32_t dividend = utos32((((uint32_t)dx) << 16) + (uint32_t)ax);
-				int32_t divisor  = utos32(src);
+				int16_t divisor  = utos16(src);
 
-				if (dividend == 0x7fffffff && divisor == -1) {
+				if (dividend == INT32_MAX && divisor == -1) {
 					call_int(0);
 					return;
 				}
 
-				int32_t quotient  = dividend / src;
-				int32_t remainder = dividend % src;
+				int32_t quotient  = dividend / divisor;
+				int32_t remainder = dividend % divisor;
 
-				if (quotient > 0xffff) {
+				if (quotient > INT16_MAX || quotient < INT16_MIN) {
 					call_int(0);
 					return;
 				}
