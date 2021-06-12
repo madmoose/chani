@@ -419,9 +419,9 @@ void dos_t::int21_3c_create_or_truncate_file() {
 	}
 	filepath[len] = '\0';
 
-	printf("Opening file '%s'\n", filepath);
+	printf("Creating file '%s'\n", filepath);
 
-	FILE *f = fopen(filepath, "wb");
+	FILE *f = fopen(filepath, "w+b");
 	assert(f);
 
 	int fd = open_files.size() + first_fd;
@@ -479,6 +479,8 @@ void dos_t::int21_3d_open_file() {
 #endif
 	assert(f);
 
+	printf("Opening file '%s'\n", filepath);
+
 	int fd = open_files.size() + first_fd;
 	open_files.push_back(f);
 
@@ -510,7 +512,10 @@ void dos_t::int21_3f_read_file_or_device() {
 	size_t remain = count;
 	while (remain > 0) {
 		size_t r = fread(buf, 1, remain, f);
-		if (r == 0 && !feof(f)) {
+		if (r < remain) {
+			if (feof(f)) {
+				break;
+			}
 			printf("Failed to read %d bytes\n", (int)remain);
 			exit(1);
 		}
@@ -563,6 +568,7 @@ void dos_t::int21_41_delete_file() {
 
 void dos_t::int21_42_move_file_pointer() {
 	FILE *f = open_files.at(machine->cpu->bx - first_fd);
+	size_t offset = (((uint32_t)machine->cpu->cx) << 16) + machine->cpu->dx;
 
 	assert(f);
 
@@ -577,7 +583,6 @@ void dos_t::int21_42_move_file_pointer() {
 			return;
 	}
 
-	size_t offset = (((uint32_t)machine->cpu->cx) << 16) + machine->cpu->dx;
 	size_t result = fseek(f, offset, whence);
 	assert(result == 0);
 
