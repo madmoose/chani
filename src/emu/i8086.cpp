@@ -1704,8 +1704,8 @@ void i8086_t::op_cwd() {
 }
 
 void i8086_t::op_call_far() {
-	uint16_t seg = fetch16();
 	uint16_t ofs = fetch16();
+	uint16_t seg = fetch16();
 
 	push(cs);
 	push(ip);
