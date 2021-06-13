@@ -146,7 +146,7 @@ void main_window_t::loop() {
 		{
 			ImGui::Text("X: %d", frame_x);
 			ImGui::Text("Y: %d", frame_y);
-			ImGui::Text("Button %d", mouse_btn);
+			ImGui::Text("Button: %d", mouse_btn);
 			ImGui::End();
 		}
 
