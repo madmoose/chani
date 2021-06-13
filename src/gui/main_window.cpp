@@ -142,11 +142,34 @@ void main_window_t::loop() {
 			ImGui::End();
 		}
 
-		if (ImGui::Begin("Mouse"))
+		if (ImGui::Begin("Framebuffer Mouse State"))
 		{
 			ImGui::Text("X: %d", frame_x);
 			ImGui::Text("Y: %d", frame_y);
 			ImGui::Text("Button: %d", mouse_btn);
+			ImGui::End();
+		}
+
+		// Display Keyboard/Mouse state
+		if (ImGui::Begin("Keyboard & Navigation State"))
+		{
+			ImGuiIO& io = ImGui::GetIO();
+			ImGui::Text("Keys down:");          for (int i = 0; i < IM_ARRAYSIZE(io.KeysDown); i++) if (ImGui::IsKeyDown(i)) { ImGui::SameLine(); ImGui::Text("%d (0x%X) (%.02f secs)", i, i, io.KeysDownDuration[i]); }
+			ImGui::Text("Keys pressed:");       for (int i = 0; i < IM_ARRAYSIZE(io.KeysDown); i++) if (ImGui::IsKeyPressed(i)) { ImGui::SameLine(); ImGui::Text("%d (0x%X)", i, i); }
+			ImGui::Text("Keys release:");       for (int i = 0; i < IM_ARRAYSIZE(io.KeysDown); i++) if (ImGui::IsKeyReleased(i)) { ImGui::SameLine(); ImGui::Text("%d (0x%X)", i, i); }
+			ImGui::Text("Keys mods: %s%s%s%s", io.KeyCtrl ? "CTRL " : "", io.KeyShift ? "SHIFT " : "", io.KeyAlt ? "ALT " : "", io.KeySuper ? "SUPER " : "");
+			ImGui::Text("Chars queue:");        for (int i = 0; i < io.InputQueueCharacters.Size; i++) { ImWchar c = io.InputQueueCharacters[i]; ImGui::SameLine();  ImGui::Text("\'%c\' (0x%04X)", (c > ' ' && c <= 255) ? (char)c : '?', c); }
+
+			ImGui::Text("NavInputs down:");     for (int i = 0; i < IM_ARRAYSIZE(io.NavInputs); i++) if (io.NavInputs[i] > 0.0f) { ImGui::SameLine(); ImGui::Text("[%d] %.2f (%.02f secs)", i, io.NavInputs[i], io.NavInputsDownDuration[i]); }
+			ImGui::Text("NavInputs pressed:");  for (int i = 0; i < IM_ARRAYSIZE(io.NavInputs); i++) if (io.NavInputsDownDuration[i] == 0.0f) { ImGui::SameLine(); ImGui::Text("[%d]", i); }
+
+			ImGui::Button("Hovering me sets the\nkeyboard capture flag");
+			if (ImGui::IsItemHovered())
+				ImGui::CaptureKeyboardFromApp(true);
+			ImGui::SameLine();
+			ImGui::Button("Holding me clears the\nthe keyboard capture flag");
+			if (ImGui::IsItemActive())
+				ImGui::CaptureKeyboardFromApp(false);
 			ImGui::End();
 		}
 
