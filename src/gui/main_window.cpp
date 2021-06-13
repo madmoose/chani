@@ -119,6 +119,7 @@ void main_window_t::loop() {
 			}
 			ImGui::EndChildFrame();
 		}
+
 		ImGui::End();
 
 		if (ImGui::Begin("Palette"))
@@ -143,9 +144,9 @@ void main_window_t::loop() {
 
 		if (ImGui::Begin("Mouse"))
 		{
-			ImGui::LabelText("X", "%d", frame_x);
-			ImGui::LabelText("Y", "%d", frame_y);
-			ImGui::LabelText("Button", "%d", mouse_btn);
+			ImGui::Text("X: %d", frame_x);
+			ImGui::Text("Y: %d", frame_y);
+			ImGui::Text("Button %d", mouse_btn);
 			ImGui::End();
 		}
 
