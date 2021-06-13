@@ -86,47 +86,48 @@ void main_window_t::loop() {
 			machine->vga->read_dac_ram(dac_ram);
 		});
 
-		{
-			if (ImGui::Begin("Framebuffer")) {
-				if (ImGui::BeginChild(123, ImVec2(0, 0), false, ImGuiWindowFlags_NoMove)) {
-					ImVec2 wpos = ImGui::GetWindowPos();
-					ImVec2 frame_size = ImVec2(2 * frame_texture.width(), 2 * frame_texture.height());
+		int frame_x = 0;
+		int frame_y = 0;
+		uint16_t mouse_btn = 0;
 
-					frame_texture.apply();
-					ImGui::Image((ImTextureID)frame_texture.id(), frame_size);
+		if (ImGui::Begin("Framebuffer")) {
+			if (ImGui::BeginChild(123, ImVec2(0, 0), false, ImGuiWindowFlags_NoMove)) {
+				ImVec2 wpos = ImGui::GetWindowPos();
+				ImVec2 frame_size = ImVec2(2 * frame_texture.width(), 2 * frame_texture.height());
 
-					if (ImGui::IsWindowFocused()) {
-						ImVec2 mouse_pos = ImGui::GetMousePos();
+				frame_texture.apply();
+				ImGui::Image((ImTextureID)frame_texture.id(), frame_size);
 
-						int frame_x = 640 * ((mouse_pos.x - wpos.x) / frame_size.x);
-						int frame_y = 200 * ((mouse_pos.y - wpos.y) / frame_size.y);
+				if (ImGui::IsWindowFocused()) {
+					ImVec2 mouse_pos = ImGui::GetMousePos();
 
-						uint16_t mouse_btn = 0;
-						if (frame_x >= 0 && frame_x < 640 && frame_y >= 0 && frame_y < 200) {
-							ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-							if (ImGui::IsMouseDown(0)) {
-								mouse_btn |= 1;
-							}
-							if (ImGui::IsMouseDown(1)) {
-								mouse_btn |= 2;
-							}
+					frame_x = 640 * ((mouse_pos.x - wpos.x) / frame_size.x);
+					frame_y = 200 * ((mouse_pos.y - wpos.y) / frame_size.y);
+
+					mouse_btn = 0;
+					if (frame_x >= 0 && frame_x < 640 && frame_y >= 0 && frame_y < 200) {
+						ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+						if (ImGui::IsMouseDown(0)) {
+							mouse_btn |= 1;
 						}
-						machine_runner->set_mouse(frame_x, frame_y, mouse_btn);
+						if (ImGui::IsMouseDown(1)) {
+							mouse_btn |= 2;
+						}
 					}
+					machine_runner->set_mouse(frame_x, frame_y, mouse_btn);
 				}
-				ImGui::EndChildFrame();
 			}
-			ImGui::End();
+			ImGui::EndChildFrame();
 		}
+		ImGui::End();
 
+		if (ImGui::Begin("Palette"))
 		{
-			ImGui::Begin("Palette");
-
-			byte *palette_image_data = palette_texture.data();
+			byte* palette_image_data = palette_texture.data();
 			for (int c = 0; c != 256; ++c) {
-				byte r = dac_ram[3*c+0];
-				byte g = dac_ram[3*c+1];
-				byte b = dac_ram[3*c+2];
+				byte r = dac_ram[3 * c + 0];
+				byte g = dac_ram[3 * c + 1];
+				byte b = dac_ram[3 * c + 2];
 
 				palette_image_data[4 * c + 0] = (r << 2) | (r >> 4);
 				palette_image_data[4 * c + 1] = (g << 2) | (g >> 4);
@@ -135,8 +136,16 @@ void main_window_t::loop() {
 			}
 			palette_texture.apply();
 
-			ImGui::Image((ImTextureID)palette_texture.id(), ImVec2(8*palette_texture.width(), 8*palette_texture.height()));
+			ImGui::Image((ImTextureID)palette_texture.id(), ImVec2(8 * palette_texture.width(), 8 * palette_texture.height()));
 
+			ImGui::End();
+		}
+
+		if (ImGui::Begin("Mouse"))
+		{
+			ImGui::LabelText("X", "%d", frame_x);
+			ImGui::LabelText("Y", "%d", frame_y);
+			ImGui::LabelText("Button", "%d", mouse_btn);
 			ImGui::End();
 		}
 
