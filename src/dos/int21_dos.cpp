@@ -508,45 +508,10 @@ void dos_t::int21_3f_read_file_or_device() {
 	byte     *buf   = machine->memory + (0x10 * machine->cpu->ds + machine->cpu->dx);
 
 	assert(f);
-
-	size_t remain = count;
-	while (remain > 0) {
-		size_t r = fread(buf, 1, remain, f);
-		if (r < remain) {
-			if (feof(f)) {
-				break;
-			}
-			printf("Failed to read %d bytes\n", (int)remain);
-			exit(1);
-		}
-		buf += r;
-		remain -= r;
-	}
-
-	if (CHANIDEBUG) {
-		long position = ftell(f);
-		printf("Read %d (0x%x) bytes from %d offset %ld to %04x:%04x-%04x:%04x\n",
-			count, count, machine->cpu->bx, position - count,
-			machine->cpu->ds, machine->cpu->dx,
-			machine->cpu->ds, machine->cpu->dx + count
-		);
-	}
-
-	if (CHANIDEBUG) {
-		for (int i = 0; i != std::min(uint16_t(64), count); ++i) {
-			if (i % 16 > 0) {
-				printf(" ");
-			}
-			printf("%02x", machine->memory[0x10 * machine->cpu->ds + machine->cpu->dx + i]);
-			if (i % 16 == 15) {
-				printf("\n");
-			}
-		}
-		printf("\n");
-	}
+	size_t r = fread(buf, 1, count, f);
 
 	clc();
-	machine->cpu->ax = count;
+	machine->cpu->ax = r;
 }
 
 void dos_t::int21_40_write_file_or_device() {
@@ -555,7 +520,6 @@ void dos_t::int21_40_write_file_or_device() {
 	byte     *buf   = machine->memory + (0x10 * machine->cpu->ds + machine->cpu->dx);
 
 	assert(f);
-
 	uint16_t bytes_written = fwrite(buf, 1, count, f);
 
 	clc();
