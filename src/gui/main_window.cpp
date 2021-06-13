@@ -119,11 +119,9 @@ void main_window_t::loop() {
 			}
 			ImGui::EndChildFrame();
 		}
-
 		ImGui::End();
 
-		if (ImGui::Begin("Palette"))
-		{
+		if (ImGui::Begin("Palette")) {
 			byte* palette_image_data = palette_texture.data();
 			for (int c = 0; c != 256; ++c) {
 				byte r = dac_ram[3 * c + 0];
@@ -142,8 +140,7 @@ void main_window_t::loop() {
 			ImGui::End();
 		}
 
-		if (ImGui::Begin("Framebuffer Mouse State"))
-		{
+		if (ImGui::Begin("Framebuffer Mouse State")) {
 			ImGui::Text("X: %d", frame_x);
 			ImGui::Text("Y: %d", frame_y);
 			ImGui::Text("Button: %d", mouse_btn);
@@ -151,8 +148,7 @@ void main_window_t::loop() {
 		}
 
 		// Display Keyboard/Mouse state
-		if (ImGui::Begin("Keyboard & Navigation State"))
-		{
+		if (ImGui::Begin("Keyboard & Navigation State")) {
 			ImGuiIO& io = ImGui::GetIO();
 			ImGui::Text("Keys down:");          for (int i = 0; i < IM_ARRAYSIZE(io.KeysDown); i++) if (ImGui::IsKeyDown(i)) { ImGui::SameLine(); ImGui::Text("%d (0x%X) (%.02f secs)", i, i, io.KeysDownDuration[i]); }
 			ImGui::Text("Keys pressed:");       for (int i = 0; i < IM_ARRAYSIZE(io.KeysDown); i++) if (ImGui::IsKeyPressed(i)) { ImGui::SameLine(); ImGui::Text("%d (0x%X)", i, i); }
@@ -162,14 +158,6 @@ void main_window_t::loop() {
 
 			ImGui::Text("NavInputs down:");     for (int i = 0; i < IM_ARRAYSIZE(io.NavInputs); i++) if (io.NavInputs[i] > 0.0f) { ImGui::SameLine(); ImGui::Text("[%d] %.2f (%.02f secs)", i, io.NavInputs[i], io.NavInputsDownDuration[i]); }
 			ImGui::Text("NavInputs pressed:");  for (int i = 0; i < IM_ARRAYSIZE(io.NavInputs); i++) if (io.NavInputsDownDuration[i] == 0.0f) { ImGui::SameLine(); ImGui::Text("[%d]", i); }
-
-			ImGui::Button("Hovering me sets the\nkeyboard capture flag");
-			if (ImGui::IsItemHovered())
-				ImGui::CaptureKeyboardFromApp(true);
-			ImGui::SameLine();
-			ImGui::Button("Holding me clears the\nthe keyboard capture flag");
-			if (ImGui::IsItemActive())
-				ImGui::CaptureKeyboardFromApp(false);
 			ImGui::End();
 		}
 
