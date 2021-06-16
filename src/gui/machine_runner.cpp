@@ -6,6 +6,7 @@
 #include "emu/i8254_pit.h"
 #include "emu/ibm5160.h"
 #include "emu/vga.h"
+#include "emu/keyboard.h"
 
 #include <thread>
 #include <vector>
@@ -36,6 +37,12 @@ void machine_runner_t::with_machine(const std::function<void(ibm5160_t *)> &f) {
 void machine_runner_t::set_mouse(uint16_t x, uint16_t y, uint16_t buttons) {
 	std::lock_guard<std::mutex> lock(machine_mutex);
 	machine->dos->set_mouse(x, y, buttons);
+}
+
+void machine_runner_t::set_key_down(int key_id) {
+	std::lock_guard<std::mutex> lock(machine_mutex);
+	machine->keyboard->set_key_down(key_id);
+	machine->cpu->raise_intr(9);
 }
 
 void machine_runner_t::run_until_next_event() {

@@ -32,7 +32,7 @@ public:
 	void with_machine(const std::function<void(ibm5160_t *)> &f);
 
 	void set_mouse(uint16_t x, uint16_t y, uint16_t buttons);
-
+	void set_key_down(int key_id);
 	void run_until_next_event();
 	void loop();
 };

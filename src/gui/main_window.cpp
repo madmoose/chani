@@ -119,6 +119,13 @@ void main_window_t::loop() {
 			}
 			ImGui::EndChildFrame();
 		}
+		ImGui::CaptureKeyboardFromApp(false);
+		ImGuiIO& io = ImGui::GetIO();
+		for (int key_index = 0; key_index < IM_ARRAYSIZE(io.KeysDown); key_index++) {
+			if (ImGui::IsKeyDown(key_index)) {
+				machine_runner->set_key_down(key_index);
+			}
+		}
 		ImGui::End();
 
 		if (ImGui::Begin("Palette")) {

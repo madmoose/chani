@@ -9,6 +9,7 @@ class dos_t;
 class i8086_t;
 class i8254_pit_t;
 class vga_t;
+class keyboard_t;
 
 class ibm5160_t {
 public:
@@ -18,6 +19,7 @@ public:
 	i8086_t     *cpu;
 	i8254_pit_t *pit;
 	vga_t       *vga;
+	keyboard_t *keyboard;
 
 	ibm5160_t();
 
