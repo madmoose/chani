@@ -24,8 +24,9 @@ uint8_t keyboard_t::read() {
 		}
 	}
 
-	byte value = output_queue.front();
+	byte value = 0;
 	if (!output_queue.empty()) {
+		value = output_queue.front();
 		output_queue.pop();
 	}
 	if (!input_queue.empty()) {
