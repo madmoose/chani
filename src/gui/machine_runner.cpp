@@ -39,9 +39,15 @@ void machine_runner_t::set_mouse(uint16_t x, uint16_t y, uint16_t buttons) {
 	machine->dos->set_mouse(x, y, buttons);
 }
 
-void machine_runner_t::set_key_down(int key_id) {
+void machine_runner_t::set_key_down(int down_key_id) {
 	std::lock_guard<std::mutex> lock(machine_mutex);
-	machine->keyboard->set_key_down(key_id);
+	machine->keyboard->set_key_down(down_key_id);
+	machine->cpu->raise_intr(9);
+}
+
+void machine_runner_t::set_key_up(int up_key_id) {
+	std::lock_guard<std::mutex> lock(machine_mutex);
+	machine->keyboard->set_key_up(up_key_id);
 	machine->cpu->raise_intr(9);
 }
 

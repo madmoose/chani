@@ -125,6 +125,9 @@ void main_window_t::loop() {
 			if (ImGui::IsKeyDown(key_index)) {
 				machine_runner->set_key_down(key_index);
 			}
+			if (ImGui::IsKeyReleased(key_index)) {
+				machine_runner->set_key_up(key_index);
+			}
 		}
 		ImGui::End();
 

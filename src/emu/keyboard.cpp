@@ -1,24 +1,44 @@
 #include "keyboard.h"
+#include <queue>
 
 keyboard_t::keyboard_t() {
 }
 
 uint8_t keyboard_t::read() {
-	// From Scan Code Set 1
-	// http://users.utcluj.ro/~baruch/sie/labor/PS2/Scan_Codes_Set_1.htm
-	switch (key_id)
-	{
-	case 256: //Escape
-		return 1;
-		break;
-	default:
-		return key_id;
-		break;
+	if (input_queue.empty()) {
+		return 0;
 	}
-	return 1;
+
+
+	if (output_queue.empty()) {
+		glfw_input_key_t last_input_key = input_queue.front();
+		for (int i = 0; i < scan_code_set_1_length; i++) {
+			key_sequence_t element = scan_code_set_1[i];
+			if (element.glfw_index == last_input_key.glfw_index) {
+				if (last_input_key.is_key_up) {
+					output_queue = std::queue(element.break_sequence);
+				}
+				else {
+					output_queue = std::queue(element.make_sequence);
+				}
+			}
+		}
+	}
+
+	if (output_queue.empty()) {
+		return 0;
+	}
+	byte value = output_queue.front();
+	output_queue.pop();
+	return value;
 }
 
-void keyboard_t::set_key_down(int input_key_id)
+void keyboard_t::set_key_down(int down_key_id)
 {
-	key_id = input_key_id;
+	input_queue.push(glfw_input_key_t(down_key_id, false));
+}
+
+void keyboard_t::set_key_up(int up_key_id)
+{
+	input_queue.push(glfw_input_key_t(up_key_id, true));
 }
