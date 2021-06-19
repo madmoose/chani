@@ -9,7 +9,6 @@ uint8_t keyboard_t::read() {
 		return 0;
 	}
 
-
 	if (output_queue.empty()) {
 		glfw_input_key_t last_input_key = input_queue.front();
 		for (int i = 0; i < scan_code_set_1_length; i++) {
@@ -25,11 +24,13 @@ uint8_t keyboard_t::read() {
 		}
 	}
 
-	if (output_queue.empty()) {
-		return 0;
-	}
 	byte value = output_queue.front();
-	output_queue.pop();
+	if (!output_queue.empty()) {
+		output_queue.pop();
+	}
+	if (!input_queue.empty()) {
+		input_queue.pop();
+	}
 	return value;
 }
 
