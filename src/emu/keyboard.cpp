@@ -1,12 +1,24 @@
 #include "keyboard.h"
 #include <algorithm>
 #include <queue>
+#include <iostream>
+#include <string>
+
+#ifndef DEBUG_KBD
+#define DEBUG_KBD 0
+#endif
 
 keyboard_t::keyboard_t() {
 }
 
 void keyboard_t::push_input_sequence(std::list<byte> sequence)
 {
+#ifdef DEBUG_KBD
+	for (byte value : sequence) {
+		printf("%x", value);
+	}
+	printf("\n");
+#endif
 	for (byte value : sequence) {
 		output_queue.push(value);
 	}
@@ -19,7 +31,10 @@ uint8_t keyboard_t::read() {
 			key_sequence_t element = scan_code_set_1[i];
 			if (element.glfw_index == last_input_key.glfw_index) {
 				input_queue.pop();
-				if (last_input_key.is_key_up) {
+#ifdef DEBUG_KBD
+				std::cout << element.key_name << ": ";
+#endif
+				if (!last_input_key.is_key_up) {
 					push_input_sequence(element.break_sequence);
 				}
 				else {
