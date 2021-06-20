@@ -30,7 +30,7 @@ private:
 	//a make or break sequence can be several bytes, but the CPU reads one byte at a time.
 	std::queue<byte> output_queue = std::queue<byte>();
 
-	const static int scan_code_set_1_length = 117;
+	const static int scan_code_set_1_length = 104;
 
 	//taken from http://users.utcluj.ro/~baruch/sie/labor/PS2/Scan_Codes_Set_1.htm
 	//Scan Code Set 1, sorted by glfw key values.
