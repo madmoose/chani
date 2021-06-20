@@ -1,24 +1,29 @@
 #include "keyboard.h"
+#include <algorithm>
 #include <queue>
 
 keyboard_t::keyboard_t() {
 }
 
-uint8_t keyboard_t::read() {
-	if (input_queue.empty()) {
-		return 0;
+void keyboard_t::push_input_sequence(std::list<byte> sequence)
+{
+	for (byte value : sequence) {
+		output_queue.push(value);
 	}
+}
 
-	if (output_queue.empty()) {
+uint8_t keyboard_t::read() {
+	if (output_queue.empty() && !input_queue.empty()) {
 		glfw_input_key_t last_input_key = input_queue.front();
 		for (int i = 0; i < scan_code_set_1_length; i++) {
 			key_sequence_t element = scan_code_set_1[i];
 			if (element.glfw_index == last_input_key.glfw_index) {
+				input_queue.pop();
 				if (last_input_key.is_key_up) {
-					output_queue = std::queue(element.break_sequence);
+					push_input_sequence(element.break_sequence);
 				}
 				else {
-					output_queue = std::queue(element.make_sequence);
+					push_input_sequence(element.make_sequence);
 				}
 			}
 		}
@@ -29,9 +34,7 @@ uint8_t keyboard_t::read() {
 		value = output_queue.front();
 		output_queue.pop();
 	}
-	if (!input_queue.empty()) {
-		input_queue.pop();
-	}
+
 	return value;
 }
 

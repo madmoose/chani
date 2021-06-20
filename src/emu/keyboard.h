@@ -15,19 +15,20 @@ struct glfw_input_key_t {
 struct key_sequence_t {
 	const std::string key_name; //for debug puposes
 	int               glfw_index; //From glfw3.h. Key to match input with scan code
-	std::list<byte>   make_sequence; //for key_down. Up to 6 bytes for PAUSE with scan code set 1.
-	std::list<byte>   break_sequence; //for key_up. Up to 2 bytes with scan code set 1.
+	std::list<byte> make_sequence; //for key_down. Up to 6 bytes for PAUSE with scan code set 1.
+	std::list<byte> break_sequence; //for key_up. Up to 2 bytes with scan code set 1.
 };
 
 class keyboard_t {
 public:
 	keyboard_t();
+	void push_input_sequence(std::list<byte> element);
 	uint8_t read();
 	void set_key_down(int input_key_id);
 	void set_key_up(int input_key_id);
 private:
 	//a make or break sequence can be several bytes, but the CPU reads one byte at a time.
-	std::queue<byte, std::list<byte>> output_queue = std::queue<byte, std::list<byte>>();
+	std::queue<byte> output_queue = std::queue<byte>();
 
 	const static int scan_code_set_1_length = 117;
 
