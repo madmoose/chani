@@ -22,11 +22,11 @@ struct key_sequence_t {
 class keyboard_t {
 public:
 	keyboard_t();
-	void push_input_sequence(std::list<byte> element);
 	uint8_t read();
 	void set_key_down(int input_key_id);
 	void set_key_up(int input_key_id);
 private:
+	void push_input_sequence(std::list<byte> element);
 	//a make or break sequence can be several bytes, but the CPU reads one byte at a time.
 	std::queue<byte> output_queue = std::queue<byte>();
 
