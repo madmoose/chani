@@ -27,10 +27,10 @@ void keyboard_t::push_input_sequence(std::list<byte> sequence)
 uint8_t keyboard_t::read() {
 	if (!input_queue.empty()) {
 		glfw_input_key_t last_input_key = input_queue.front();
+		input_queue.pop();
 		for (int i = 0; i < scan_code_set_1_length; i++) {
 			key_sequence_t element = scan_code_set_1[i];
 			if (element.glfw_index == last_input_key.glfw_index) {
-				input_queue.pop();
 #ifdef DEBUG_KBD
 				std::cout << element.key_name << ": ";
 #endif
