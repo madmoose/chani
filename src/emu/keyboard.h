@@ -6,6 +6,7 @@
 #include <string>
 #include <queue>
 #include <list>
+#include <vector>
 #include <string>
 
 struct glfw_input_key_t {
@@ -30,9 +31,10 @@ public:
 	uint64_t next_cycles();
 	uint64_t run_cycles(uint64_t cycles);
 private:
-	void push_input_sequence(std::list<byte> element);
+	void set_output_vector(std::list<byte> element);
 	//a make or break sequence can be several bytes, but the CPU reads one byte at a time.
-	std::queue<byte> output_queue = std::queue<byte>();
+	int output_index = 0;
+	std::vector<byte> output_vector = std::vector<byte>();
 
 	const static int scan_code_set_1_length = 104;
 

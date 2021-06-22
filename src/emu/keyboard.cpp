@@ -5,6 +5,7 @@
 #include <queue>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #ifndef DEBUG_KBD
 #define DEBUG_KBD 0
@@ -28,18 +29,18 @@ uint64_t keyboard_t::run_cycles(uint64_t cycles) {
 				std::cout << element.key_name << ": ";
 #endif
 				if (!last_input_key.is_key_up) {
-					push_input_sequence(element.break_sequence);
+					set_output_vector(element.break_sequence);
 				}
 				else {
-					push_input_sequence(element.make_sequence);
+					set_output_vector(element.make_sequence);
 				}
 			}
 		}
 	}
-	return output_queue.size();
+	return output_vector.size();
 }
 
-void keyboard_t::push_input_sequence(std::list<byte> sequence)
+void keyboard_t::set_output_vector(std::list<byte> sequence)
 {
 #ifdef DEBUG_KBD
 	for (byte value : sequence) {
@@ -47,17 +48,19 @@ void keyboard_t::push_input_sequence(std::list<byte> sequence)
 	}
 	printf("\n");
 #endif
-	for (byte value : sequence) {
-		output_queue.push(value);
-	}
+	output_vector = { std::begin(sequence), std::end(sequence) };
 }
 
 uint8_t keyboard_t::read() {
 
 	byte value = 0;
-	if (!output_queue.empty()) {
-		value = output_queue.front();
-		output_queue.pop();
+	if (!output_vector.empty()) {
+		if (output_index >= output_vector.size()) {
+			output_index = 0;
+		}
+		value = output_vector.at(output_index);
+		printf("value: %d\n", value);
+		output_index++;
 	}
 
 	return value;
@@ -66,11 +69,11 @@ uint8_t keyboard_t::read() {
 void keyboard_t::set_key_down(int down_key_id)
 {
 	input_queue.push(glfw_input_key_t(down_key_id, false));
-	machine->cpu->call_int(9);
+	machine->cpu->raise_intr(9);
 }
 
 void keyboard_t::set_key_up(int up_key_id)
 {
 	input_queue.push(glfw_input_key_t(up_key_id, true));
-	machine->cpu->call_int(9);
+	machine->cpu->raise_intr(9);
 }
