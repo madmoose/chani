@@ -18,6 +18,7 @@ machine_runner_t::machine_runner_t(ibm5160_t *machine) :
 		{ "cpu", machine->cpu, 0.0 },
 		{ "vga", machine->vga, 0.0 },
 		{ "pit", machine->pit, 0.0 },
+		{ "keyboard", machine->keyboard, 0.0 },
 	};
 
 	thread = new std::thread(&machine_runner_t::loop, this);
@@ -42,13 +43,11 @@ void machine_runner_t::set_mouse(uint16_t x, uint16_t y, uint16_t buttons) {
 void machine_runner_t::set_key_down(int down_key_id) {
 	std::lock_guard<std::mutex> lock(machine_mutex);
 	machine->keyboard->set_key_down(down_key_id);
-	machine->cpu->raise_intr(9);
 }
 
 void machine_runner_t::set_key_up(int up_key_id) {
 	std::lock_guard<std::mutex> lock(machine_mutex);
 	machine->keyboard->set_key_up(up_key_id);
-	machine->cpu->raise_intr(9);
 }
 
 void machine_runner_t::run_until_next_event() {

@@ -40,6 +40,7 @@ ibm5160_t::ibm5160_t() {
 	dos->install();
 
 	keyboard = new keyboard_t;
+	keyboard->set_machine(this);
 }
 
 extern void dump_call_stack();

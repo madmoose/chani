@@ -1,4 +1,6 @@
 #include "keyboard.h"
+#include "emu/ibm5160.h"
+#include "emu/i8086.h"
 #include <algorithm>
 #include <queue>
 #include <iostream>
@@ -11,20 +13,11 @@
 keyboard_t::keyboard_t() {
 }
 
-void keyboard_t::push_input_sequence(std::list<byte> sequence)
-{
-#ifdef DEBUG_KBD
-	for (byte value : sequence) {
-		printf("%x", value);
-	}
-	printf("\n");
-#endif
-	for (byte value : sequence) {
-		output_queue.push(value);
-	}
+uint64_t keyboard_t::next_cycles() {
+	return input_queue.size();
 }
 
-uint8_t keyboard_t::read() {
+uint64_t keyboard_t::run_cycles(uint64_t cycles) {
 	if (!input_queue.empty()) {
 		glfw_input_key_t last_input_key = input_queue.front();
 		input_queue.pop();
@@ -43,6 +36,23 @@ uint8_t keyboard_t::read() {
 			}
 		}
 	}
+	return output_queue.size();
+}
+
+void keyboard_t::push_input_sequence(std::list<byte> sequence)
+{
+#ifdef DEBUG_KBD
+	for (byte value : sequence) {
+		printf("%x", value);
+	}
+	printf("\n");
+#endif
+	for (byte value : sequence) {
+		output_queue.push(value);
+	}
+}
+
+uint8_t keyboard_t::read() {
 
 	byte value = 0;
 	if (!output_queue.empty()) {
@@ -56,9 +66,11 @@ uint8_t keyboard_t::read() {
 void keyboard_t::set_key_down(int down_key_id)
 {
 	input_queue.push(glfw_input_key_t(down_key_id, false));
+	machine->cpu->call_int(9);
 }
 
 void keyboard_t::set_key_up(int up_key_id)
 {
 	input_queue.push(glfw_input_key_t(up_key_id, true));
+	machine->cpu->call_int(9);
 }

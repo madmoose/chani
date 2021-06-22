@@ -6,6 +6,7 @@
 #include <string>
 #include <queue>
 #include <list>
+#include <string>
 
 struct glfw_input_key_t {
 	int  glfw_index; //From glfw3.h. Key to match input with scan code
@@ -19,12 +20,15 @@ struct key_sequence_t {
 	std::list<byte> break_sequence; //for key_up. Up to 2 bytes with scan code set 1.
 };
 
-class keyboard_t {
+class keyboard_t : public device_t {
 public:
 	keyboard_t();
 	uint8_t read();
 	void set_key_down(int input_key_id);
 	void set_key_up(int input_key_id);
+	double   frequency_in_mhz() { return 20; };
+	uint64_t next_cycles();
+	uint64_t run_cycles(uint64_t cycles);
 private:
 	void push_input_sequence(std::list<byte> element);
 	//a make or break sequence can be several bytes, but the CPU reads one byte at a time.
