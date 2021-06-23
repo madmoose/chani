@@ -54,11 +54,10 @@ uint8_t keyboard_t::read() {
 
 	byte value = 0;
 	if (!output_vector.empty()) {
-		if (output_index >= output_vector.size()) {
-			output_index = 0;
+		if (output_index < output_vector.size() - 1) {
+			output_index++;
 		}
 		value = output_vector.at(output_index);
-		output_index++;
 	}
 
 	return value;
