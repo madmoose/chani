@@ -6,8 +6,6 @@
 #include <string>
 #include <queue>
 #include <list>
-#include <vector>
-#include <string>
 
 #define INPUT_BUFFER_SIZE 32
 
@@ -44,6 +42,7 @@ private:
 	void set_port_60(byte val);
 	void add_buffer(byte data);
 	keyboard_memory_t keyboard_memory = keyboard_memory_t();
+	std::queue<glfw_input_key_t> input_queue = std::queue<glfw_input_key_t>();
 
 	const static int scan_code_set_1_length = 104;
 
@@ -155,7 +154,6 @@ private:
 		{"GLFW_KEY_RIGHT_SUPER", 347, {0xE0, 0x5C}, {0xE0, 0xDC}},
 		{"GLFW_KEY_MENU", 348, {0xE0, 0x5D}, {0xE0, 0xDD}}
 	};
-	std::queue<glfw_input_key_t> input_queue = std::queue<glfw_input_key_t>();
 };
 
 #endif

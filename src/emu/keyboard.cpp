@@ -5,8 +5,6 @@
 #include <queue>
 #include <iostream>
 #include <string>
-#include <vector>
-#include <algorithm>
 
 #ifndef DEBUG_KBD
 #define DEBUG_KBD 1
