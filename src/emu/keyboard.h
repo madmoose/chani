@@ -9,6 +9,15 @@
 #include <vector>
 #include <string>
 
+#define INPUT_BUFFER_SIZE 32
+
+struct keyboard_memory_t {
+	byte input_buffer[INPUT_BUFFER_SIZE];
+	byte used_input_position;
+	byte input_write_position;
+	byte p60data;
+};
+
 struct glfw_input_key_t {
 	int  glfw_index; //From glfw3.h. Key to match input with scan code
 	bool is_key_up; //to know if we return the make or the break sequence after finding a match
@@ -31,10 +40,10 @@ public:
 	uint64_t next_cycles();
 	uint64_t run_cycles(uint64_t cycles);
 private:
-	void set_output_vector(std::list<byte> element);
-	//a make or break sequence can be several bytes, but the CPU reads one byte at a time.
-	int output_index = 0;
-	std::vector<byte> output_vector = std::vector<byte>();
+	void transfer_buffer(byte val);
+	void set_port_60(byte val);
+	void add_buffer(byte data);
+	keyboard_memory_t keyboard_memory = keyboard_memory_t();
 
 	const static int scan_code_set_1_length = 104;
 
