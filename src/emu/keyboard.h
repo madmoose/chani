@@ -11,9 +11,9 @@
 
 struct keyboard_memory_t {
 	byte input_buffer[INPUT_BUFFER_SIZE];
-	byte used_input_position;
-	byte input_write_position;
-	byte p60data;
+	byte buffer_read_position;
+	byte buffer_write_position;
+	byte port_60_value;
 };
 
 struct glfw_input_key_t {
@@ -38,9 +38,8 @@ public:
 	uint64_t next_cycles();
 	uint64_t run_cycles(uint64_t cycles);
 private:
-	void transfer_buffer(byte val);
-	void set_port_60(byte val);
-	void add_buffer(byte data);
+	void update_port_60_value(byte value);
+	void add_input_buffer(byte value);
 	keyboard_memory_t keyboard_memory = keyboard_memory_t();
 	std::queue<glfw_input_key_t> input_queue = std::queue<glfw_input_key_t>();
 

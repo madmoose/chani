@@ -59,7 +59,7 @@ uint16_t ibm5160_t::read(address_space_t address_space, uint32_t addr, width_t w
 		byte v = 0;
 		if (addr == IO_PORT) {
 			v = keyboard->read();
-			printf("[%04x:%04x] IO %x -> %02x\n", cpu->cs, cpu->ip, addr, v);
+			//printf("[%04x:%04x] IO %x -> %02x\n", cpu->cs, cpu->ip, addr, v);
 		}
 		else if (addr >= 0x3c0 && addr < 0x3e0) {
 			v = vga->read(address_space, addr);

@@ -25,15 +25,15 @@ uint64_t keyboard_t::run_cycles(uint64_t cycles) {
 			key_sequence_t element = scan_code_set_1[i];
 			if (element.glfw_index == last_input_key.glfw_index) {
 				if (!last_input_key.is_key_up) {
-					for (byte data : element.make_sequence) {
-						add_buffer(data);
-						transfer_buffer(data);
+					for (byte value : element.make_sequence) {
+						add_input_buffer(value);
+						update_port_60_value(value);
 					}
 				}
 				else {
-					for (byte data : element.break_sequence) {
-						add_buffer(data);
-						transfer_buffer(data);
+					for (byte value : element.break_sequence) {
+						add_input_buffer(value);
+						update_port_60_value(value);
 					}
 				}
 			}
@@ -42,37 +42,34 @@ uint64_t keyboard_t::run_cycles(uint64_t cycles) {
 	return input_queue.size();
 }
 
-void keyboard_t::transfer_buffer(byte val) {
-	if (keyboard_memory.used_input_position <= 0) {
+void keyboard_t::update_port_60_value(byte value) {
+	if (keyboard_memory.buffer_read_position <= 0) {
 		return;
 	}
-	set_port_60(keyboard_memory.input_buffer[keyboard_memory.input_write_position]);
-	keyboard_memory.input_write_position++;
-	if (keyboard_memory.input_write_position >= INPUT_BUFFER_SIZE) {
-		keyboard_memory.input_write_position -= INPUT_BUFFER_SIZE;
-	}
-	keyboard_memory.used_input_position--;
-}
-
-void keyboard_t::set_port_60(byte val) {
-	keyboard_memory.p60data = val;
+	byte port_60_value = keyboard_memory.input_buffer[keyboard_memory.buffer_write_position];
+	keyboard_memory.port_60_value = value;
 	machine->cpu->raise_intr(9);
+	keyboard_memory.buffer_write_position++;
+	if (keyboard_memory.buffer_write_position >= INPUT_BUFFER_SIZE) {
+		keyboard_memory.buffer_write_position -= INPUT_BUFFER_SIZE;
+	}
+	keyboard_memory.buffer_read_position--;
 }
 
-void keyboard_t::add_buffer(byte data) {
-	if (keyboard_memory.used_input_position >= INPUT_BUFFER_SIZE) {
+void keyboard_t::add_input_buffer(byte value) {
+	if (keyboard_memory.buffer_read_position >= INPUT_BUFFER_SIZE) {
 		return;
 	}
-	byte start = keyboard_memory.input_write_position + keyboard_memory.used_input_position;
-	if (start >= INPUT_BUFFER_SIZE) {
-		start -= INPUT_BUFFER_SIZE;
+	byte buffer_read_position = keyboard_memory.buffer_write_position + keyboard_memory.buffer_read_position;
+	if (buffer_read_position >= INPUT_BUFFER_SIZE) {
+		buffer_read_position -= INPUT_BUFFER_SIZE;
 	}
-	keyboard_memory.input_buffer[start] = data;
-	keyboard_memory.used_input_position++;
+	keyboard_memory.input_buffer[buffer_read_position] = value;
+	keyboard_memory.buffer_read_position++;
 }
 
 uint8_t keyboard_t::read() {
-	return keyboard_memory.p60data;
+	return keyboard_memory.port_60_value;
 }
 
 void keyboard_t::set_key_down(int down_key_id)
