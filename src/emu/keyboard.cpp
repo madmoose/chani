@@ -24,17 +24,9 @@ uint64_t keyboard_t::run_cycles(uint64_t cycles) {
 		for (int i = 0; i < scan_code_set_1_length; i++) {
 			key_sequence_t element = scan_code_set_1[i];
 			if (element.glfw_index == last_input_key.glfw_index) {
-				if (!last_input_key.is_key_up) {
-					for (byte value : element.make_sequence) {
-						add_input_buffer(value);
-						update_port_60_value(value);
-					}
-				}
-				else {
-					for (byte value : element.break_sequence) {
-						add_input_buffer(value);
-						update_port_60_value(value);
-					}
+				for (byte value : last_input_key.is_key_up ? element.break_sequence : element.make_sequence) {
+					add_input_buffer(value);
+					update_port_60_value(value);
 				}
 			}
 		}
