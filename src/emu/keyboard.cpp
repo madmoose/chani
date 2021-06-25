@@ -4,11 +4,6 @@
 #include <algorithm>
 #include <queue>
 #include <iostream>
-#include <string>
-
-#ifndef DEBUG_KBD
-#define DEBUG_KBD 1
-#endif
 
 keyboard_t::keyboard_t() {
 }
@@ -29,9 +24,6 @@ uint64_t keyboard_t::run_cycles(uint64_t cycles) {
 		for (int i = 0; i < scan_code_set_1_length; i++) {
 			key_sequence_t element = scan_code_set_1[i];
 			if (element.glfw_index == last_input_key.glfw_index) {
-#ifdef DEBUG_KBD
-				std::cout << element.key_name << "\n";
-#endif
 				if (!last_input_key.is_key_up) {
 					for (byte data : element.make_sequence) {
 						add_buffer(data);
