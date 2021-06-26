@@ -114,7 +114,6 @@ void main_window_t::loop() {
 							mouse_btn |= 2;
 						}
 					}
-					// FIXME: Conflicts with games where the mouse can be moved with the keyboard.
 					machine_runner->set_mouse(frame_x, frame_y, mouse_btn);
 				}
 			}

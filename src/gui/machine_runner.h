@@ -17,6 +17,10 @@ class machine_runner_t {
 		double      next_event;
 	};
 
+	uint16_t old_mouse_x = -1;
+	uint16_t old_mouse_y = -1;
+	uint16_t old_mouse_buttons = -1;
+
 	std::vector<device_next_event_t> devices;
 
 	std::mutex  machine_mutex;

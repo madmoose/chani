@@ -37,7 +37,13 @@ void machine_runner_t::with_machine(const std::function<void(ibm5160_t *)> &f) {
 
 void machine_runner_t::set_mouse(uint16_t x, uint16_t y, uint16_t buttons) {
 	std::lock_guard<std::mutex> lock(machine_mutex);
-	machine->dos->set_mouse(x, y, buttons);
+	if (old_mouse_x != x || old_mouse_y != y || old_mouse_buttons != buttons)
+	{
+		old_mouse_x = x;
+		old_mouse_y = y;
+		old_mouse_buttons = buttons;
+		machine->dos->set_mouse(x, y, buttons);
+	}
 }
 
 void machine_runner_t::set_key_down(int down_key_id) {
