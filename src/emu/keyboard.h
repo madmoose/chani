@@ -11,11 +11,6 @@
 #include <queue>
 #include <string>
 
-struct glfw_input_key_t {
-	int  glfw_index; // From glfw3.h. Key to match input with scan code
-	bool is_key_up;  // to know if we return the make or the break sequence after finding a match
-};
-
 struct key_sequence_t {
 	const std::string key_name;       // For debug purposes
 	int               glfw_index;     // From glfw3.h. Key to match input with scan code
