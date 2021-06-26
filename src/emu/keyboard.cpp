@@ -1,75 +1,102 @@
 #include "keyboard.h"
-#include "emu/ibm5160.h"
-#include "emu/i8086.h"
-#include <algorithm>
-#include <queue>
-#include <iostream>
 
-keyboard_t::keyboard_t() {
+#include "emu/i8086.h"
+#include "emu/ibm5160.h"
+
+#include <algorithm>
+#include <iostream>
+#include <queue>
+
+keyboard_t::keyboard_t() :
+	data_output_buffer(0),
+	status(0),
+	next_event(0)
+{
+	glfw_key_state.reset();
 }
 
-// returns 0 if empty, or 1ms worth of cycles.
-// something large enough for run_cycles to run and intr 9 to be raised.
+// Returns 0 if empty, or 1ms worth of cycles.
+// Something large enough for run_cycles to run and intr 9 to be raised.
 uint64_t keyboard_t::next_cycles() {
-	if (input_queue.empty()) {
-		return 0;
+	if (next_event > 0) {
+		return next_event;
 	}
-	return input_queue.size() * scan_code_set_1_length;
+
+	if (buffer.empty()) {
+		next_event = 0;
+	} else {
+		next_event = 1000 * frequency_in_mhz();
+	}
+	return next_event;
 }
 
 uint64_t keyboard_t::run_cycles(uint64_t cycles) {
-	if (!input_queue.empty()) {
-		glfw_input_key_t last_input_key = input_queue.front();
-		input_queue.pop();
-		for (int i = 0; i < scan_code_set_1_length; i++) {
-			key_sequence_t element = scan_code_set_1[i];
-			if (element.glfw_index == last_input_key.glfw_index) {
-				for (byte value : last_input_key.is_key_up ? element.break_sequence : element.make_sequence) {
-					add_input_buffer(value);
-					update_port_60_value(value);
-				}
-			}
+	next_event -= cycles;
+
+	if (next_event == 0) {
+		if (!buffer.empty()) {
+			data_output_buffer = buffer.front();
+			buffer.pop_front();
+			status |= I8042_STATUS_OUTPUT_BUFFER_FULL;
+			machine->cpu->raise_intr(9);
 		}
 	}
-	return input_queue.size();
+
+	return cycles;
 }
 
-void keyboard_t::update_port_60_value(byte value) {
-	if (keyboard_memory.buffer_read_position <= 0) {
+uint8_t keyboard_t::read(uint8_t addr) {
+	switch (addr) {
+		case 0x00:
+			if (status | I8042_STATUS_OUTPUT_BUFFER_FULL) {
+				status &= ~I8042_STATUS_OUTPUT_BUFFER_FULL;
+				next_event = 1000 * frequency_in_mhz();
+			}
+			return data_output_buffer;
+		case 0x04:
+			return status;
+		default:
+			printf("keyboard: unhandled io read @ %02x -> %02x\n", addr, 0);
+	}
+	return 0;
+}
+
+void keyboard_t::write(uint8_t addr, uint8_t v) {
+	printf("keyboard: unhandled io write @ %02x <- %02x\n", addr, v);
+}
+
+void keyboard_t::set_key_down(int key_id) {
+	if (glfw_key_state.test(key_id)) {
 		return;
 	}
-	byte port_60_value = keyboard_memory.input_buffer[keyboard_memory.buffer_write_position];
-	keyboard_memory.port_60_value = value;
-	machine->cpu->raise_intr(9);
-	keyboard_memory.buffer_write_position++;
-	if (keyboard_memory.buffer_write_position >= INPUT_BUFFER_SIZE) {
-		keyboard_memory.buffer_write_position -= INPUT_BUFFER_SIZE;
+
+	glfw_key_state.set(key_id);
+
+	for (int i = 0; i < scan_code_set_1_length; i++) {
+		key_sequence_t element = scan_code_set_1[i];
+		if (element.glfw_index == key_id) {
+			for (byte value : element.make_sequence) {
+				buffer.push_back(value);
+			}
+			break;
+		}
 	}
-	keyboard_memory.buffer_read_position--;
 }
 
-void keyboard_t::add_input_buffer(byte value) {
-	if (keyboard_memory.buffer_read_position >= INPUT_BUFFER_SIZE) {
+void keyboard_t::set_key_up(int key_id) {
+	if (!glfw_key_state.test(key_id)) {
 		return;
 	}
-	byte buffer_read_position = keyboard_memory.buffer_write_position + keyboard_memory.buffer_read_position;
-	if (buffer_read_position >= INPUT_BUFFER_SIZE) {
-		buffer_read_position -= INPUT_BUFFER_SIZE;
+
+	glfw_key_state.reset(key_id);
+
+	for (int i = 0; i < scan_code_set_1_length; i++) {
+		key_sequence_t element = scan_code_set_1[i];
+		if (element.glfw_index == key_id) {
+			for (byte value : element.break_sequence) {
+				buffer.push_back(value);
+			}
+			break;
+		}
 	}
-	keyboard_memory.input_buffer[buffer_read_position] = value;
-	keyboard_memory.buffer_read_position++;
-}
-
-uint8_t keyboard_t::read() {
-	return keyboard_memory.port_60_value;
-}
-
-void keyboard_t::set_key_down(int down_key_id)
-{
-	input_queue.push(glfw_input_key_t(down_key_id, false));
-}
-
-void keyboard_t::set_key_up(int up_key_id)
-{
-	input_queue.push(glfw_input_key_t(up_key_id, true));
 }

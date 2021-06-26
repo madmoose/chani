@@ -14,7 +14,6 @@
 
 #define MEMORY_SIZE     0x100000
 #define DIRTY_PAGE_SIZE     4096
-#define IO_PORT             0x60
 
 ibm5160_t::ibm5160_t() {
 	memory = (byte *)malloc(MEMORY_SIZE);
@@ -57,11 +56,9 @@ uint16_t ibm5160_t::read(address_space_t address_space, uint32_t addr, width_t w
 	if (address_space == IO) {
 		assert(w == W8);
 		byte v = 0;
-		if (addr == IO_PORT) {
-			v = keyboard->read();
-			//printf("[%04x:%04x] IO %x -> %02x\n", cpu->cs, cpu->ip, addr, v);
-		}
-		else if (addr >= 0x3c0 && addr < 0x3e0) {
+		if (addr >= 0x60 && addr <= 0x64) {
+			v = keyboard->read(addr - 0x60);
+		} else if (addr >= 0x3c0 && addr < 0x3e0) {
 			v = vga->read(address_space, addr);
 		}
 		// printf("[%04x:%04x] IO %x -> %02x\n", cpu->cs, cpu->ip, addr, v);
@@ -88,6 +85,8 @@ void ibm5160_t::write(address_space_t address_space, uint32_t addr, width_t w, u
 
 		if (addr >= 0x040 && addr < 0x060) {
 			pit->write(addr - 0x040, v);
+		} else if (addr >= 0x60 && addr <= 0x64) {
+			keyboard->write(addr - 0x60, v);
 		} else if (addr >= 0x3c0 && addr < 0x3e0) {
 			vga->write(address_space, addr, v);
 		}

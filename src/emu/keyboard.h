@@ -3,50 +3,57 @@
 
 #include "emu/device.h"
 #include "support/types.h"
-#include <string>
-#include <queue>
+
+#include <GLFW/glfw3.h>
+
+#include <bitset>
 #include <list>
-
-#define INPUT_BUFFER_SIZE 32
-
-struct keyboard_memory_t {
-	byte input_buffer[INPUT_BUFFER_SIZE];
-	byte buffer_read_position;
-	byte buffer_write_position;
-	byte port_60_value;
-};
+#include <queue>
+#include <string>
 
 struct glfw_input_key_t {
-	int  glfw_index; //From glfw3.h. Key to match input with scan code
-	bool is_key_up; //to know if we return the make or the break sequence after finding a match
+	int  glfw_index; // From glfw3.h. Key to match input with scan code
+	bool is_key_up;  // to know if we return the make or the break sequence after finding a match
 };
 
 struct key_sequence_t {
-	const std::string key_name; //for debug puposes
-	int               glfw_index; //From glfw3.h. Key to match input with scan code
-	std::list<byte> make_sequence; //for key_down. Up to 6 bytes for PAUSE with scan code set 1.
-	std::list<byte> break_sequence; //for key_up. Up to 2 bytes with scan code set 1.
+	const std::string key_name;       // For debug purposes
+	int               glfw_index;     // From glfw3.h. Key to match input with scan code
+	std::list<byte>   make_sequence;  // For key_down. Up to 6 bytes for PAUSE with scan code set 1.
+	std::list<byte>   break_sequence; // For key_up. Up to 2 bytes with scan code set 1.
 };
+
+#define I8042_STATUS_OUTPUT_BUFFER_FULL 0x01
 
 class keyboard_t : public device_t {
 public:
 	keyboard_t();
-	uint8_t read();
-	void set_key_down(int input_key_id);
-	void set_key_up(int input_key_id);
-	double   frequency_in_mhz() { return 20; };
+
+	double   frequency_in_mhz() { return 20.0; };
 	uint64_t next_cycles();
 	uint64_t run_cycles(uint64_t cycles);
+
+	uint8_t read(uint8_t addr);
+	void    write(uint8_t addr, uint8_t v);
+
+	void set_key_down(int input_key_id);
+	void set_key_up(int input_key_id);
+
 private:
-	void update_port_60_value(byte value);
-	void add_input_buffer(byte value);
-	keyboard_memory_t keyboard_memory = keyboard_memory_t();
-	std::queue<glfw_input_key_t> input_queue = std::queue<glfw_input_key_t>();
+	uint64_t next_event;
+
+	std::bitset<GLFW_KEY_LAST+1> glfw_key_state;
+
+	// Translated keys in scan code format
+	std::deque<uint8_t> buffer;
+
+	byte data_output_buffer;
+	byte status;
 
 	const static int scan_code_set_1_length = 104;
 
-	//taken from http://users.utcluj.ro/~baruch/sie/labor/PS2/Scan_Codes_Set_1.htm
-	//Scan Code Set 1, sorted by glfw key values.
+	// Taken from http://users.utcluj.ro/~baruch/sie/labor/PS2/Scan_Codes_Set_1.htm
+	// Scan Code Set 1, sorted by glfw key values.
 	key_sequence_t scan_code_set_1[scan_code_set_1_length] = {
 		{"GLFW_KEY_SPACE", 32, {0x39}, {0xB9}},
 		{"GLFW_KEY_APOSTROPHE", 39, {0x28}, {0xA8}},
