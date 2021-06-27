@@ -1,5 +1,6 @@
 #include "gui/main_window.h"
 
+#include "emu/i8086.h"
 #include "emu/ibm5160.h"
 #include "emu/vga.h"
 #include "gui/machine_runner.h"
@@ -156,6 +157,147 @@ void main_window_t::loop() {
 			ImGui::Text("Button: %d", mouse_btn);
 			ImGui::End();
 		}
+
+		machine_runner->with_machine([&](ibm5160_t* machine) {
+			if (ImGui::Begin("CPU State")) {
+				if (ImGui::BeginTable("Registers", 2,
+					ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInner
+					| ImGuiTableBgTarget_CellBg | ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_Reorderable))
+				{
+					ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+					ImGui::TableNextColumn();
+					ImGui::Text("Field");
+					ImGui::TableNextColumn();
+					ImGui::Text("Value");
+					ImGui::TableNextColumn();
+					ImGui::Text("AX");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->ax);
+					ImGui::TableNextColumn();
+					ImGui::Text("ES");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->es);
+					ImGui::TableNextColumn();
+					ImGui::Text("SP");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->sp);
+					ImGui::TableNextColumn();
+					ImGui::Text("IP");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->ip);
+					ImGui::TableNextColumn();
+					ImGui::Text("CX");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->cx);
+					ImGui::TableNextColumn();
+					ImGui::Text("CS");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->cs);
+					ImGui::TableNextColumn();
+					ImGui::Text("BP");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->bp);
+					ImGui::TableNextColumn();
+					ImGui::Text("OP");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->op);
+					ImGui::TableNextColumn();
+					ImGui::Text("DX");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->dx);
+					ImGui::TableNextColumn();
+					ImGui::Text("SS");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->ss);
+					ImGui::TableNextColumn();
+					ImGui::Text("DI");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->di);
+					ImGui::TableNextColumn();
+					ImGui::Text("BX");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->bx);
+					ImGui::TableNextColumn();
+					ImGui::Text("DS");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->ds);
+					ImGui::TableNextColumn();
+					ImGui::Text("SI");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04x", machine->cpu->si);
+					ImGui::TableNextColumn();
+					ImGui::Text("OF");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->get_of());
+					ImGui::TableNextColumn();
+					ImGui::Text("DF");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->get_df());
+					ImGui::TableNextColumn();
+					ImGui::Text("IF");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->get_if());
+					ImGui::TableNextColumn();
+					ImGui::Text("TF");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->get_tf());
+					ImGui::TableNextColumn();
+					ImGui::Text("SF");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->get_sf());
+					ImGui::TableNextColumn();
+					ImGui::Text("ZF");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->get_zf());
+					ImGui::TableNextColumn();
+					ImGui::Text("AF");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->get_af());
+					ImGui::TableNextColumn();
+					ImGui::Text("PF");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->get_pf());
+					ImGui::TableNextColumn();
+					ImGui::Text("CF");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->get_cf());
+					ImGui::TableNextColumn();
+					ImGui::Text("Combined Flags");
+					ImGui::TableNextColumn();
+					ImGui::Text("%04X", machine->cpu->get_log_flags());
+					ImGui::TableNextColumn();
+					ImGui::Text("Instruction count");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->get_instr_count());
+					ImGui::TableNextColumn();
+					ImGui::Text("OP");
+					ImGui::TableNextColumn();
+					ImGui::Text("%02X", machine->cpu->op);
+					ImGui::TableNextColumn();
+					ImGui::Text("Is Prefix");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->is_prefix);
+					ImGui::TableNextColumn();
+					ImGui::Text("Int delay");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->int_delay);
+					ImGui::TableNextColumn();
+					ImGui::Text("Int nmi");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->int_nmi);
+					ImGui::TableNextColumn();
+					ImGui::Text("Int intr");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->int_intr);
+					ImGui::TableNextColumn();
+					ImGui::Text("Int Number");
+					ImGui::TableNextColumn();
+					ImGui::Text("%d", machine->cpu->int_number);
+					ImGui::EndTable();
+				}
+				ImGui::End();
+			}
+		});
 
 		ImGui::Render();
 		int display_w, display_h;

@@ -110,7 +110,7 @@ void i8086_t::log_state() {
 	printf(" S%d", get_sf());
 	printf(" O%d", get_of());
 	printf(" I%d", get_if());
-	printf(" F%04X", flags & (FLAG_CF | FLAG_PF | FLAG_ZF | FLAG_SF | FLAG_TF | FLAG_IF | FLAG_DF | FLAG_OF));
+	printf(" F%04X", get_log_flags());
 	printf("\n");
 }
 

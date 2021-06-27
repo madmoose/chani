@@ -131,6 +131,8 @@ public:
 		flags = cond ? (flags | mask) : (flags & ~mask);
 	}
 
+	int get_log_flags() { return flags & (FLAG_CF | FLAG_PF | FLAG_ZF | FLAG_SF | FLAG_TF | FLAG_IF | FLAG_DF | FLAG_OF); }
+
 	bool get_cf() { return !!(flags & FLAG_CF); }
 	bool get_pf() { return !!(flags & FLAG_PF); }
 	bool get_af() { return !!(flags & FLAG_AF); }
@@ -150,6 +152,8 @@ public:
 	void set_if(bool cond) { set_flags(FLAG_IF, cond); }
 	void set_df(bool cond) { set_flags(FLAG_DF, cond); }
 	void set_of(bool cond) { set_flags(FLAG_OF, cond); }
+
+	int get_instr_count() { return instr_count; }
 
 	struct modrm_t {
 		byte     v;
