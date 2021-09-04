@@ -1172,7 +1172,7 @@ void i8086_t::op_alu_r_rm() {
 	}
 
 	if (CHANIDEBUG) {
-		const char *s_oper = &"add\0or\0\0adc\0sbb\0and\0sub\0xor\0cmp"[4 * func];
+		const char *s_oper = &"add\0or\0adc\0sbb\0and\0sub\0xor\0cmp"[4 * func];
 		printf("%s\t", s_oper);
 		if (!d) {
 			mem.print();
@@ -1204,7 +1204,7 @@ void i8086_t::op_alu_a_imm() {
 	cycles += 4;
 
 	if (CHANIDEBUG) {
-		const char *s_oper = &"add\0or\0\0adc\0sbb\0and\0sub\0xor\0cmp"[4 * func];
+		const char *s_oper = &"add\0or\0adc\0sbb\0and\0sub\0xor\0cmp"[4 * func];
 		printf("%s\t%s, %s\n", s_oper, !w ? "al" : "ax", str_imm(b));
 	}
 }
