@@ -23,7 +23,7 @@ void main_window_t::initialize_glfw() {
 	glfwSetErrorCallback([](int error, const char *desc) {
 		printf("GLFW error %d: %s\n", error, desc);
 		exit(-1);
-	});
+		});
 
 	if (!glfwInit()) {
 		printf("Failed to initialize GLFW\n");
@@ -65,19 +65,17 @@ void main_window_t::initialize_imgui() {
 }
 
 void main_window_t::loop() {
-	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
 	texture_t frame_texture(320, 200);
-
 	byte dac_ram[0x300];
-	texture_t palette_texture(16, 16);
 
 	// bool show_demo_window = true;
+
+		// bool show_demo_window = true;
 	bool show_disassembler = true;
 
 	auto disassembler_view = new disassembler_view_t;
 
-	disassembler_view->focus({0x01ed, 0x0000});
+	disassembler_view->focus({ 0x01ed, 0x0000 });
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -86,93 +84,125 @@ void main_window_t::loop() {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		// ImGui::ShowDemoWindow(&show_demo_window);
-
 		machine_runner->with_machine([&](ibm5160_t *machine) {
+			disassembler_view->draw("Disassembler", &show_disassembler, [&machine](address_space_t s, uint32_t addr, width_t w) { return machine->read(s, addr, w); });
 			machine->vga->read_rgba(frame_texture.data(), 0xA0000, frame_texture.width(), frame_texture.height());
 			machine->vga->read_dac_ram(dac_ram);
-		});
+			});
 
 		int frame_x = 0;
 		int frame_y = 0;
 		uint16_t mouse_btn = 0;
 
-		if (ImGui::Begin("Framebuffer")) {
-			if (ImGui::BeginChild(123, ImVec2(0, 0), false, ImGuiWindowFlags_NoMove)) {
-				ImVec2 wpos = ImGui::GetWindowPos();
-				ImVec2 frame_size = ImVec2(2 * frame_texture.width(), 2 * frame_texture.height());
+		create_window_framebuffer(frame_texture, frame_x, frame_y, mouse_btn);
+		capture_keyboard();
+		create_window_palette_state(dac_ram);
+		create_window_mouse_state(frame_x, frame_y, mouse_btn);
+		create_window_cpu_state();
 
-				frame_texture.apply();
-				ImGui::Image((ImTextureID)frame_texture.id(), frame_size);
+		glfw_render_frame();
+	}
 
-				if (ImGui::IsWindowFocused()) {
-					ImVec2 mouse_pos = ImGui::GetMousePos();
+	machine_runner->stop();
+}
 
-					frame_x = 640 * ((mouse_pos.x - wpos.x) / frame_size.x);
-					frame_y = 200 * ((mouse_pos.y - wpos.y) / frame_size.y);
+void main_window_t::glfw_render_frame()
+{
+	ImGui::Render();
+	int display_w, display_h;
+	glfwGetFramebufferSize(window, &display_w, &display_h);
+	glViewport(0, 0, display_w, display_h);
+	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+	glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
+	glClear(GL_COLOR_BUFFER_BIT);
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	glfwSwapBuffers(window);
+}
 
-					mouse_btn = 0;
-					if (frame_x >= 0 && frame_x < 640 && frame_y >= 0 && frame_y < 200) {
-						ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-						if (ImGui::IsMouseDown(0)) {
-							mouse_btn |= 1;
-						}
-						if (ImGui::IsMouseDown(1)) {
-							mouse_btn |= 2;
-						}
+void main_window_t::create_window_framebuffer(texture_t& frame_texture, int& frame_x, int& frame_y, uint16_t& mouse_btn)
+{
+	if (ImGui::Begin("Framebuffer")) {
+		if (ImGui::BeginChild(123, ImVec2(0, 0), false, ImGuiWindowFlags_NoMove)) {
+			ImVec2 wpos = ImGui::GetWindowPos();
+			ImVec2 frame_size = ImVec2(2 * frame_texture.width(), 2 * frame_texture.height());
+
+			frame_texture.apply();
+			ImGui::Image((ImTextureID)frame_texture.id(), frame_size);
+
+			if (ImGui::IsWindowFocused()) {
+				ImVec2 mouse_pos = ImGui::GetMousePos();
+
+				frame_x = 640 * ((mouse_pos.x - wpos.x) / frame_size.x);
+				frame_y = 200 * ((mouse_pos.y - wpos.y) / frame_size.y);
+
+				mouse_btn = 0;
+				if (frame_x >= 0 && frame_x < 640 && frame_y >= 0 && frame_y < 200) {
+					ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+					if (ImGui::IsMouseDown(0)) {
+						mouse_btn |= 1;
 					}
-					machine_runner->set_mouse(frame_x, frame_y, mouse_btn);
+					if (ImGui::IsMouseDown(1)) {
+						mouse_btn |= 2;
+					}
 				}
-			}
-			ImGui::EndChildFrame();
-		}
-		ImGui::CaptureKeyboardFromApp(false);
-		ImGuiIO& io = ImGui::GetIO();
-		for (int key_index = 0; key_index < IM_ARRAYSIZE(io.KeysDown); key_index++) {
-			if (ImGui::IsKeyDown(key_index)) {
-				machine_runner->set_key_down(key_index);
-			}
-			if (ImGui::IsKeyReleased(key_index)) {
-				machine_runner->set_key_up(key_index);
+				machine_runner->set_mouse(frame_x, frame_y, mouse_btn);
 			}
 		}
+		ImGui::EndChildFrame();
 		ImGui::End();
+	}
+}
 
-		if (ImGui::Begin("Palette")) {
-			byte* palette_image_data = palette_texture.data();
-			for (int c = 0; c != 256; ++c) {
-				byte r = dac_ram[3 * c + 0];
-				byte g = dac_ram[3 * c + 1];
-				byte b = dac_ram[3 * c + 2];
-
-				palette_image_data[4 * c + 0] = (r << 2) | (r >> 4);
-				palette_image_data[4 * c + 1] = (g << 2) | (g >> 4);
-				palette_image_data[4 * c + 2] = (b << 2) | (b >> 4);
-				palette_image_data[4 * c + 3] = 255;
-			}
-			palette_texture.apply();
-
-			ImGui::Image((ImTextureID)palette_texture.id(), ImVec2(8 * palette_texture.width(), 8 * palette_texture.height()));
-
-			ImGui::End();
+void main_window_t::capture_keyboard() {
+	ImGui::CaptureKeyboardFromApp(false);
+	ImGuiIO& io = ImGui::GetIO();
+	for (int key_index = 0; key_index < IM_ARRAYSIZE(io.KeysDown); key_index++) {
+		if (ImGui::IsKeyDown(key_index)) {
+			machine_runner->set_key_down(key_index);
 		}
-
-		if (ImGui::Begin("Framebuffer Mouse State")) {
-			ImGui::Text("X: %d", frame_x);
-			ImGui::Text("Y: %d", frame_y);
-			ImGui::Text("Button: %d", mouse_btn);
-			ImGui::End();
+		if (ImGui::IsKeyReleased(key_index)) {
+			machine_runner->set_key_up(key_index);
 		}
+	}
+}
 
-		machine_runner->with_machine([&](ibm5160_t *machine) {
-			disassembler_view->draw("Disassembler", &show_disassembler, [&machine](address_space_t s, uint32_t addr, width_t w) { return machine->read(s, addr, w); });
-		});
+void main_window_t::create_window_palette_state(byte dac_ram[768]) {
+	if (ImGui::Begin("Palette")) {
+		texture_t palette_texture(16, 16);
+		byte *palette_image_data = palette_texture.data();
+		for (int c = 0; c != 256; ++c) {
+			byte r = dac_ram[3 * c + 0];
+			byte g = dac_ram[3 * c + 1];
+			byte b = dac_ram[3 * c + 2];
 
-		machine_runner->with_machine([&](ibm5160_t* machine) {
-			if (ImGui::Begin("CPU State")) {
-				if (ImGui::BeginTable("Registers", 2,
-					ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInner
-					| ImGuiTableBgTarget_CellBg | ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_Reorderable))
+			palette_image_data[4 * c + 0] = (r << 2) | (r >> 4);
+			palette_image_data[4 * c + 1] = (g << 2) | (g >> 4);
+			palette_image_data[4 * c + 2] = (b << 2) | (b >> 4);
+			palette_image_data[4 * c + 3] = 255;
+		}
+		palette_texture.apply();
+
+		ImGui::Image((ImTextureID)palette_texture.id(), ImVec2(8 * palette_texture.width(), 8 * palette_texture.height()));
+
+		ImGui::End();
+	}
+}
+
+void main_window_t::create_window_mouse_state(int frame_x, int frame_y, const uint16_t& mouse_btn) {
+	if (ImGui::Begin("Framebuffer Mouse State")) {
+		ImGui::Text("X: %d", frame_x);
+		ImGui::Text("Y: %d", frame_y);
+		ImGui::Text("Button: %d", mouse_btn);
+		ImGui::End();
+	}
+}
+
+void main_window_t::create_window_cpu_state() {
+	machine_runner->with_machine([&](ibm5160_t *machine) {
+		if (ImGui::Begin("CPU State")) {
+			if (ImGui::BeginTable("Registers", 2,
+				ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInner
+				| ImGuiTableBgTarget_CellBg | ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_Reorderable))
 				{
 					i8086_t *cpu = (i8086_t *)machine->cpu;
 
@@ -310,19 +340,6 @@ void main_window_t::loop() {
 				ImGui::End();
 			}
 		});
-
-		ImGui::Render();
-		int display_w, display_h;
-		glfwGetFramebufferSize(window, &display_w, &display_h);
-		glViewport(0, 0, display_w, display_h);
-		glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
-		glClear(GL_COLOR_BUFFER_BIT);
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-		glfwSwapBuffers(window);
-	}
-
-	machine_runner->stop();
 }
 
 void main_window_t::uninitialize_imgui() {
