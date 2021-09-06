@@ -373,9 +373,22 @@ static bool is_mem_arg(arg_type_e arg, byte modrm) {
 	return false;
 }
 
+static int needs_width_for_mem(arg_type_e arg) {
+	switch (arg) {
+		case PARAM_INHERIT:
+		case PARAM_NONE:
+		case PARAM_IMM8:
+		case PARAM_IMM16:
+			return true;
+
+		default:;
+	}
+	return false;
+}
+
 void disasm_i8086_t::disassemble(uint16_t a_cs, uint16_t *a_ip, const char **s) {
 	cs = a_cs;
-	ip = *a_ip;
+	op_ip = ip = *a_ip;
 
 	sreg_ovr  = 0;
 	flag_f2   = false;
@@ -436,8 +449,7 @@ opcode:
 
 #undef REG
 
-	strbuf.sprintf("%04x:%04x\t", cs, ip);
-	strbuf.sprintf("%02x\t", op);
+	strbuf.sprintf("%04x:%04x\t", cs, op_ip);
 
 	if (!opcode.mnemonic) {
 		strbuf.sprintf("db\t%s", str_imm(op));
@@ -481,10 +493,21 @@ opcode:
 			}
 		}
 
-		if (sreg_ovr) {
-			bool has_mem_arg = is_mem_arg(opcode.arg_1, modrm)
-							|| is_mem_arg(opcode.arg_2, modrm);
+		bool has_mem_arg = is_mem_arg(opcode.arg_1, modrm)
+		                || is_mem_arg(opcode.arg_2, modrm);
 
+		bool needs_mem_width = has_mem_arg &&
+			(needs_width_for_mem(opcode.arg_1) ||
+			 needs_width_for_mem(opcode.arg_2));
+
+		show_mem_width = always_show_mem_width || needs_mem_width;
+
+		/*
+		 * If we have a segment override but no memory
+		 * argument to put it in front of, put it before
+		 * the mnemonic.
+		 */
+		if (sreg_ovr) {
 			if (!has_mem_arg) {
 				strbuf.sprintf("%s", str_sreg_ovr(sreg_ovr));
 			}
@@ -533,191 +556,163 @@ const char *disasm_i8086_t::str_sreg(byte reg) {
 
 const char *disasm_i8086_t::str_sreg_ovr(byte sreg_ovr) {
 	switch (sreg_ovr) {
+		case 0x26: return "es:";
 		case 0x2e: return "cs:";
 		case 0x36: return "ss:";
 		case 0x3e: return "ds:";
-		case 0x26: return "es:";
 	}
 	return "";
 }
 
+#define REG ((modrm >> 3) & 0b111)
+
 void disasm_i8086_t::handle_param(arg_type_e arg) {
 	switch (arg) {
-	case PARAM_INHERIT:
-	case PARAM_NONE:
-		break;
-	case PARAM_1:
-		strbuf.sprintf("1");
-		break;
-	case PARAM_3:
-		strbuf.sprintf("3");
-		break;
-	case PARAM_AH:
-		strbuf.sprintf("ah");
-		break;
-	case PARAM_AL:
-		strbuf.sprintf("al");
-		break;
-	case PARAM_AX:
-		strbuf.sprintf("ax");
-		break;
-	case PARAM_BH:
-		strbuf.sprintf("bh");
-		break;
-	case PARAM_BL:
-		strbuf.sprintf("bl");
-		break;
-	case PARAM_BP:
-		strbuf.sprintf("bp");
-		break;
-	case PARAM_BX:
-		strbuf.sprintf("bx");
-		break;
-	case PARAM_CH:
-		strbuf.sprintf("ch");
-		break;
-	case PARAM_CL:
-		strbuf.sprintf("cl");
-		break;
-	case PARAM_CS:
-		strbuf.sprintf("cs");
-		break;
-	case PARAM_CX:
-		strbuf.sprintf("cx");
-		break;
-	case PARAM_DH:
-		strbuf.sprintf("dh");
-		break;
-	case PARAM_DI:
-		strbuf.sprintf("di");
-		break;
-	case PARAM_DL:
-		strbuf.sprintf("dl");
-		break;
-	case PARAM_DS:
-		strbuf.sprintf("ds");
-		break;
-	case PARAM_DX:
-		strbuf.sprintf("dx");
-		break;
-	case PARAM_ES:
-		strbuf.sprintf("es");
-		break;
-	case PARAM_IMM8:
-		strbuf.sprintf("%s", str_imm(fetch8()));
-		break;
-	case PARAM_IMM16:
-		strbuf.sprintf("%s", str_imm(fetch16()));
-		break;
-	case PARAM_IMEM8:
-	case PARAM_IMEM16:
-		strbuf.sprintf("%s[%s]", str_sreg_ovr(sreg_ovr), str_imm(fetch16()));
-		break;
-	case PARAM_IMEM32:
-		{
-			uint16_t ofs = fetch16();
-			uint16_t seg = fetch16();
-			strbuf.sprintf("%s[%s:%s]", str_sreg_ovr(sreg_ovr), str_imm(seg), str_imm(ofs));
-		}
-		break;
-	case PARAM_REG8:
-		{
-			byte reg = (modrm >> 3) & 0b111;
-			strbuf.sprintf("%s", str_reg(reg, false));
-		}
-		break;
-	case PARAM_REG16:
-		{
-			byte reg = (modrm >> 3) & 0b111;
-			strbuf.sprintf("%s", str_reg(reg, true));
-		}
-		break;
-	case PARAM_REL8:
-		{
-			uint16_t inc = fetch8();
-			strbuf.sprintf("%s", str_imm(ip + inc));
-		}
-		break;
-	case PARAM_REL16:
-		{
-			uint16_t inc = fetch16();
-			strbuf.sprintf("%s", str_imm(ip + inc));
-		}
-		break;
+		case PARAM_INHERIT:
+		case PARAM_NONE:
+			break;
 
-	case PARAM_MEM8:
-	case PARAM_MEM16:
-	case PARAM_MEM32:
-	case PARAM_RM8:
-	case PARAM_RM16:
-		{
-			byte mod = (modrm >> 6);
-			byte rm  = (modrm >> 0) & 0b111;
-			bool w   = (arg == PARAM_RM16)
-					|| (arg == PARAM_MEM16);
-					;
-			bool ptr = (arg == PARAM_MEM8)
-			        || (arg == PARAM_MEM16)
-					|| (arg == PARAM_MEM32)
-					;
+		case PARAM_1:  strbuf.sprintf("1"); break;
+		case PARAM_3:  strbuf.sprintf("3"); break;
 
-			if (mod == 0b11) {
-				if (arg == PARAM_MEM8 || arg == PARAM_MEM8 || arg == PARAM_MEM32) {
-					strbuf.sprintf("invalid");
-				} else {
-					strbuf.sprintf("%s", str_reg(rm, w));
-				}
-			} else {
-				strbuf.sprintf("%s", str_sreg_ovr(sreg_ovr));
-				strbuf.sprintf("[");
-				switch (rm) {
-					case 0b000: strbuf.sprintf("bx+si"); break;
-					case 0b001: strbuf.sprintf("bx+di"); break;
-					case 0b010: strbuf.sprintf("bp+si"); break;
-					case 0b011: strbuf.sprintf("bp+di"); break;
-					case 0b100: strbuf.sprintf("si");    break;
-					case 0b101: strbuf.sprintf("di");    break;
-					case 0b110:
-						if (mod) {
-							strbuf.sprintf("bp");
-						} else {
-							strbuf.sprintf("%s", str_imm(fetch16()));
-						}
-						break;
-					case 0b111: strbuf.sprintf("bx");    break;
-				}
-				int disp;
-				switch (mod) {
-					case 0b01:
-						disp = fetch8();
-						if (disp & 0x80) {
-							strbuf.sprintf("-%s", str_imm((disp ^ 0xff) + 1));
-						} else {
-							strbuf.sprintf("+%s", str_imm(disp));
-						}
-						break;
-					case 0b10:
-						strbuf.sprintf("+%s", str_imm(fetch16()));
-						break;
-				}
-				strbuf.sprintf("]");
+		case PARAM_AL: strbuf.sprintf("al"); break;
+		case PARAM_CL: strbuf.sprintf("cl"); break;
+		case PARAM_DL: strbuf.sprintf("dl"); break;
+		case PARAM_BL: strbuf.sprintf("bl"); break;
+
+		case PARAM_AH: strbuf.sprintf("ah"); break;
+		case PARAM_CH: strbuf.sprintf("ch"); break;
+		case PARAM_DH: strbuf.sprintf("dh"); break;
+		case PARAM_BH: strbuf.sprintf("bh"); break;
+
+		case PARAM_AX: strbuf.sprintf("ax"); break;
+		case PARAM_CX: strbuf.sprintf("cx"); break;
+		case PARAM_DX: strbuf.sprintf("dx"); break;
+		case PARAM_BX: strbuf.sprintf("bx"); break;
+
+		case PARAM_SP: strbuf.sprintf("sp"); break;
+		case PARAM_BP: strbuf.sprintf("bp"); break;
+		case PARAM_SI: strbuf.sprintf("si"); break;
+		case PARAM_DI: strbuf.sprintf("di"); break;
+
+		case PARAM_ES: strbuf.sprintf("es"); break;
+		case PARAM_CS: strbuf.sprintf("cs"); break;
+		case PARAM_SS: strbuf.sprintf("ss"); break;
+		case PARAM_DS: strbuf.sprintf("ds"); break;
+
+		case PARAM_REG8:
+			strbuf.sprintf("%s", str_reg(REG, false));
+			break;
+		case PARAM_REG16:
+			strbuf.sprintf("%s", str_reg(REG, true));
+			break;
+		case PARAM_SREG:
+			strbuf.sprintf("%s", str_sreg(REG));
+			break;
+
+		case PARAM_IMM8:
+			strbuf.sprintf("%s", str_imm(fetch8()));
+			break;
+		case PARAM_IMM16:
+			strbuf.sprintf("%s", str_imm(fetch16()));
+			break;
+
+		case PARAM_REL8:
+			{
+				uint16_t inc = fetch8();
+				strbuf.sprintf("%s", str_imm(ip + inc));
 			}
-		}
-		break;
-	case PARAM_SI:
-		strbuf.sprintf("si");
-		break;
-	case PARAM_SP:
-		strbuf.sprintf("sp");
-		break;
-	case PARAM_SREG:
-		{
-			byte sreg = (modrm >> 3) & 0b111;
-			strbuf.sprintf("%s", str_sreg(sreg));
-		}
-		break;
-	case PARAM_SS:
-		strbuf.sprintf("ss");
-		break;
+			break;
+		case PARAM_REL16:
+			{
+				uint16_t inc = fetch16();
+				strbuf.sprintf("%s", str_imm(ip + inc));
+			}
+			break;
+
+		case PARAM_IMEM8:
+		case PARAM_IMEM16:
+			strbuf.sprintf("%s[%s]", str_sreg_ovr(sreg_ovr), str_imm(fetch16()));
+			break;
+		case PARAM_IMEM32:
+			{
+				uint16_t ofs = fetch16();
+				uint16_t seg = fetch16();
+				strbuf.sprintf("%s[%s:%s]", str_sreg_ovr(sreg_ovr), str_imm(seg), str_imm(ofs));
+			}
+			break;
+
+		case PARAM_MEM8:
+		case PARAM_MEM16:
+		case PARAM_MEM32:
+		case PARAM_RM8:
+		case PARAM_RM16:
+			{
+				byte mod = (modrm >> 6);
+				byte rm  = (modrm >> 0) & 0b111;
+				bool w   = (arg == PARAM_RM16)
+						|| (arg == PARAM_MEM16);
+						;
+
+				if (mod == 0b11) {
+					if (arg == PARAM_MEM8 || arg == PARAM_MEM8 || arg == PARAM_MEM32) {
+						strbuf.sprintf("invalid");
+					} else {
+						strbuf.sprintf("%s", str_reg(rm, w));
+					}
+				} else {
+					if (show_mem_width) {
+						switch (arg) {
+							case PARAM_MEM8:
+							case PARAM_RM8:
+								strbuf.sprintf("byte ptr ");
+								break;
+							case PARAM_RM16:
+							case PARAM_MEM16:
+								strbuf.sprintf("word ptr ");
+								break;
+							case PARAM_MEM32:
+								strbuf.sprintf("far ptr ");
+								break;
+							default:;
+						}
+					}
+
+					strbuf.sprintf("%s", str_sreg_ovr(sreg_ovr));
+					strbuf.sprintf("[");
+					switch (rm) {
+						case 0b000: strbuf.sprintf("bx+si"); break;
+						case 0b001: strbuf.sprintf("bx+di"); break;
+						case 0b010: strbuf.sprintf("bp+si"); break;
+						case 0b011: strbuf.sprintf("bp+di"); break;
+						case 0b100: strbuf.sprintf("si");    break;
+						case 0b101: strbuf.sprintf("di");    break;
+						case 0b110:
+							if (mod) {
+								strbuf.sprintf("bp");
+							} else {
+								strbuf.sprintf("%s", str_imm(fetch16()));
+							}
+							break;
+						case 0b111: strbuf.sprintf("bx");    break;
+					}
+					int disp;
+					switch (mod) {
+						case 0b01:
+							disp = fetch8();
+							if (disp & 0x80) {
+								strbuf.sprintf("-%s", str_imm((disp ^ 0xff) + 1));
+							} else {
+								strbuf.sprintf("+%s", str_imm(disp));
+							}
+							break;
+						case 0b10:
+							strbuf.sprintf("+%s", str_imm(fetch16()));
+							break;
+					}
+					strbuf.sprintf("]");
+				}
+			}
+			break;
 	}
 }

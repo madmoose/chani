@@ -14,26 +14,30 @@ enum arg_type_e {
 	PARAM_1,
 	PARAM_3,
 
-	PARAM_AH,
 	PARAM_AL,
-	PARAM_AX,
-	PARAM_BH,
-	PARAM_BL,
-	PARAM_BP,
-	PARAM_BX,
-	PARAM_CH,
 	PARAM_CL,
-	PARAM_CS,
-	PARAM_CX,
-	PARAM_DH,
-	PARAM_DI,
 	PARAM_DL,
-	PARAM_DS,
+	PARAM_BL,
+
+	PARAM_AH,
+	PARAM_CH,
+	PARAM_DH,
+	PARAM_BH,
+
+	PARAM_AX,
+	PARAM_CX,
 	PARAM_DX,
-	PARAM_ES,
-	PARAM_SI,
+	PARAM_BX,
+
 	PARAM_SP,
+	PARAM_BP,
+	PARAM_SI,
+	PARAM_DI,
+
+	PARAM_ES,
+	PARAM_CS,
 	PARAM_SS,
+	PARAM_DS,
 
 	PARAM_REG8,
 	PARAM_REG16,
@@ -47,11 +51,11 @@ enum arg_type_e {
 
 	PARAM_IMEM8,
 	PARAM_IMEM16,
-	PARAM_IMEM32,
+	PARAM_IMEM32, // Needs a better name
 
 	PARAM_MEM8,
 	PARAM_MEM16,
-	PARAM_MEM32,
+	PARAM_MEM32, // Needs a better name
 	PARAM_RM8,
 	PARAM_RM16,
 };
@@ -60,12 +64,16 @@ class disasm_i8086_t {
 	uint16_t cs;
 	uint16_t ip;
 
+	uint16_t op_ip;
+
 	byte sreg_ovr;
 	bool flag_f2;
 	bool flag_f3;
 	bool flag_lock;
 	byte op;
 	byte modrm;
+
+	bool show_mem_width;
 
 	strbuf_t strbuf;
 
@@ -86,6 +94,8 @@ public:
 	read_cb_t  read;
 
 	disasm_i8086_t() {};
+
+	bool always_show_mem_width = false;
 
 	void disassemble(uint16_t cs, uint16_t *ip, const char **s = 0);
 };
