@@ -3,6 +3,7 @@
 #include "emu/i8086.h"
 #include "emu/ibm5160.h"
 #include "emu/vga.h"
+#include "disasm/disasm_i8086.h"
 #include "gui/disassembler_view.h"
 #include "gui/machine_runner.h"
 #include "gui/texture.h"
@@ -99,11 +100,32 @@ void main_window_t::loop() {
 		create_window_palette_state(dac_ram);
 		create_window_mouse_state(frame_x, frame_y, mouse_btn);
 		create_window_cpu_state();
+		create_window_disasm();
 
 		glfw_render_frame();
 	}
 
 	machine_runner->stop();
+}
+
+void main_window_t::create_window_disasm() {
+	if (ImGui::Begin("Disassembly")) {
+		machine_runner->with_machine([&](ibm5160_t* machine) {
+			disasm_i8086_t disasm;
+			disasm.read = [&machine](address_space_t s, uint32_t addr, width_t w) { return machine->read(s, addr, w); };
+			disasm.always_show_mem_width = true;
+			const char* str;
+			// 0x01ED
+			uint16_t cs = machine->cpu->cs;
+			// 0x0000;
+			uint16_t* ip = new uint16_t(machine->cpu->ip);
+			// for (int i = 0; i != 10000; ++i) {
+			disasm.disassemble(cs, ip, &str);
+			// }
+			ImGui::Text(str);
+		});
+		ImGui::End();
+	}
 }
 
 void main_window_t::glfw_render_frame()

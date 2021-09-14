@@ -17,6 +17,7 @@ private:
 	void create_window_palette_state(byte dac_ram[768]);
 	void create_window_mouse_state(int frame_x, int frame_y, const uint16_t& mouse_btn);
 	void create_window_cpu_state();
+	void create_window_disasm();
 
 public:
 	main_window_t(machine_runner_t *machine_runner) :
