@@ -29,6 +29,7 @@ class machine_runner_t {
 
 	std::thread      *thread;
 	std::atomic_flag  stop_requested;
+	bool paused = false;
 public:
 	machine_runner_t(ibm5160_t *machine);
 
@@ -42,6 +43,8 @@ public:
 
 	void run_until_next_event();
 	void loop();
+	void pause() { paused = true; }
+	void resume() { paused = false; }
 };
 
 #endif

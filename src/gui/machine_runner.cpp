@@ -62,6 +62,9 @@ void machine_runner_t::set_key_up(int up_key_id) {
 }
 
 void machine_runner_t::run_until_next_event() {
+	if (paused) {
+		return;
+	}
 	// Find next event for each devices (in microseconds)
 	for (auto &d : devices) {
 		uint64_t device_cycles = d.device->next_cycles();
