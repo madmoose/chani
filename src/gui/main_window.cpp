@@ -111,19 +111,24 @@ void main_window_t::loop() {
 void main_window_t::create_window_disasm() {
 	if (ImGui::Begin("Disassembly")) {
 		machine_runner->with_machine([&](ibm5160_t* machine) {
+			if (ImGui::Button("Pause")) {
+				machine_runner->pause();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Resume")) {
+				machine_runner->resume();
+			}
 			disasm_i8086_t disasm;
 			disasm.read = [&machine](address_space_t s, uint32_t addr, width_t w) { return machine->read(s, addr, w); };
 			disasm.always_show_mem_width = true;
-			const char* str;
-			// 0x01ED
 			uint16_t cs = machine->cpu->cs;
-			// 0x0000;
 			uint16_t* ip = new uint16_t(machine->cpu->ip);
-			// for (int i = 0; i != 10000; ++i) {
-			disasm.disassemble(cs, ip, &str);
-			// }
-			ImGui::Text(str);
-		});
+			for (int i = 0; i != 20; ++i) {
+				const char* str;
+				disasm.disassemble(cs, ip, &str);
+				ImGui::Text(str);
+			}
+			});
 		ImGui::End();
 	}
 }
