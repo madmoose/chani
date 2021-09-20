@@ -42,8 +42,6 @@ ibm5160_t::ibm5160_t() {
 	keyboard->set_machine(this);
 }
 
-extern void dump_call_stack();
-
 uint16_t ibm5160_t::read(address_space_t address_space, uint32_t addr, width_t w) {
 	if (address_space == MEM) {
 		assert(addr < MEMORY_SIZE);
@@ -61,7 +59,6 @@ uint16_t ibm5160_t::read(address_space_t address_space, uint32_t addr, width_t w
 		} else if (addr >= 0x3c0 && addr < 0x3e0) {
 			v = vga->read(address_space, addr);
 		}
-		// printf("[%04x:%04x] IO %x -> %02x\n", cpu->cs, cpu->ip, addr, v);
 		return v;
 	}
 
@@ -80,7 +77,6 @@ void ibm5160_t::write(address_space_t address_space, uint32_t addr, width_t w, u
 	}
 
 	if (address_space == IO) {
-		// printf("[%04x:%04x] IO %x <- %02x\n", cpu->cs, cpu->ip, addr, v);
 		assert(w == W8);
 
 		if (addr >= 0x040 && addr < 0x060) {

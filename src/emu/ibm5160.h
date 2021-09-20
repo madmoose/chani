@@ -19,7 +19,7 @@ public:
 	i8086_t     *cpu;
 	i8254_pit_t *pit;
 	vga_t       *vga;
-	keyboard_t *keyboard;
+	keyboard_t  *keyboard;
 
 	ibm5160_t();
 
