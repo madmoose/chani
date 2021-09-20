@@ -84,6 +84,13 @@ void main_window_t::loop() {
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
+		ImGuiIO& io = ImGui::GetIO();
+		if (io.KeyAlt && io.KeysDown[GLFW_KEY_PAUSE]) {
+			machine_runner->pause();
+		}
+		if (io.KeysDown[GLFW_KEY_F5]) {
+			machine_runner->resume();
+		}
 
 		machine_runner->with_machine([&](ibm5160_t *machine) {
 			disassembler_view->draw("Disassembler", &show_disassembler, [&machine](address_space_t s, uint32_t addr, width_t w) { return machine->read(s, addr, w); });
