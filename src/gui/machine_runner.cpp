@@ -28,9 +28,24 @@ machine_runner_t::machine_runner_t(ibm5160_t *machine) :
 }
 
 void machine_runner_t::stop() {
-	if (!stop_requested.test_and_set()) {
-		thread->join();
+	{
+		std::lock_guard<std::mutex> lock(state_mutex);
+		state = MACHINE_RUNNER_STATE_STOP;
 	}
+	state_cv.notify_one();
+	thread->join();
+}
+
+void machine_runner_t::pause() {
+	state = MACHINE_RUNNER_STATE_PAUSE;
+}
+
+void machine_runner_t::resume() {
+	{
+		std::lock_guard<std::mutex> lock(state_mutex);
+		state = MACHINE_RUNNER_STATE_RUN;
+	}
+	state_cv.notify_one();
 }
 
 void machine_runner_t::with_machine(const std::function<void(ibm5160_t *)> &f) {
@@ -62,9 +77,6 @@ void machine_runner_t::set_key_up(int up_key_id) {
 }
 
 void machine_runner_t::run_until_next_event() {
-	if (paused) {
-		return;
-	}
 	// Find next event for each devices (in microseconds)
 	for (auto &d : devices) {
 		uint64_t device_cycles = d.device->next_cycles();
@@ -88,18 +100,43 @@ void machine_runner_t::run_until_next_event() {
 	}
 }
 
+void machine_runner_t::state_run() {
+	run_until_next_event();
+	if (machine->vga->frame_ready()) {
+		// Limit frame rate to 70 fps
+		const auto frame_end = frame_start + std::chrono::nanoseconds(1000000000 / 70);
+		std::this_thread::sleep_until(frame_end);
+		frame_start = frame_end;
+	}
+}
+
+void machine_runner_t::state_pause() {
+	const auto pause_start = std::chrono::steady_clock::now();
+
+	{
+		auto ul = std::unique_lock<std::mutex>(state_mutex);
+		state_cv.wait(ul, [this](){ return state != MACHINE_RUNNER_STATE_PAUSE; });
+	}
+
+	const auto pause_end = std::chrono::steady_clock::now();
+	frame_start += (pause_end - pause_start);
+}
+
 void machine_runner_t::loop() {
-	auto frame_start = std::chrono::steady_clock::now();
+	frame_start = std::chrono::steady_clock::now();
 
-	// TODO: Handle shutdown
-	while (!stop_requested.test()) {
-		run_until_next_event();
+	for (;;) {
+		switch (state) {
+			case MACHINE_RUNNER_STATE_RUN:
+				state_run();
+				break;
 
-		if (machine->vga->frame_ready()) {
-			// Limit frame rate to 70 fps
-			const auto frame_end = frame_start + std::chrono::nanoseconds(1000000000 / 70);
-			std::this_thread::sleep_until(frame_end);
-			frame_start = frame_end;
+			case MACHINE_RUNNER_STATE_PAUSE:
+				state_pause();
+				break;
+
+			case MACHINE_RUNNER_STATE_STOP:
+				return;
 		}
 	}
 }
