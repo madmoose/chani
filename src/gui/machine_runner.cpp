@@ -27,6 +27,11 @@ machine_runner_t::machine_runner_t(ibm5160_t *machine) :
 	thread = new std::thread(&machine_runner_t::loop, this);
 }
 
+void machine_runner_t::debug_run(int cycles) {
+	debug_cycles = cycles;
+	resume();
+}
+
 void machine_runner_t::stop() {
 	{
 		std::lock_guard<std::mutex> lock(state_mutex);
@@ -96,7 +101,14 @@ void machine_runner_t::run_until_next_event() {
 	for (auto &d : devices) {
 		double   device_frequency = d.device->frequency_in_mhz();
 		uint64_t device_cycles = next_event * device_frequency;
-		d.device->run_cycles(device_cycles);
+		if (debug_cycles > 0) {
+			d.device->run_cycles(debug_cycles);
+			debug_cycles = 0;
+			pause();
+		}
+		else {
+			d.device->run_cycles(device_cycles);
+		}
 	}
 }
 

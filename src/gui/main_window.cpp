@@ -16,7 +16,6 @@
 #include <imgui.h>
 #include <imgui_demo.cpp>
 
-#include <cassert>
 #include <cstdio>
 #include <thread>
 
@@ -91,6 +90,9 @@ void main_window_t::loop() {
 		if (io.KeysDown[GLFW_KEY_F5]) {
 			machine_runner->resume();
 		}
+		if (machine_runner->is_paused() && io.KeysDown[GLFW_KEY_F10]) {
+			machine_runner->debug_run(1);
+		}
 
 		machine_runner->with_machine([&](ibm5160_t *machine) {
 			disassembler_view->draw("Disassembler", &show_disassembler, [&machine](address_space_t s, uint32_t addr, width_t w) { return machine->read(s, addr, w); });
@@ -125,14 +127,24 @@ void main_window_t::create_window_disasm() {
 			if (ImGui::Button("Resume")) {
 				machine_runner->resume();
 			}
+			if (machine_runner->is_paused()) {
+				ImGui::SameLine();
+				if (ImGui::Button("Step over")) {
+					machine_runner->debug_run(1);
+				}
+			}
 			disasm_i8086_t disasm;
 			disasm.read = [&machine](address_space_t s, uint32_t addr, width_t w) { return machine->read(s, addr, w); };
 			disasm.always_show_mem_width = true;
 			uint16_t cs = machine->cpu->cs;
-			uint16_t* ip = new uint16_t(machine->cpu->ip);
+			uint16_t ip = machine->cpu->ip;
 			for (int i = 0; i != 20; ++i) {
+				if (i == 0) {
+					ImGui::Text("> ");
+					ImGui::SameLine();
+				}
 				const char* str;
-				disasm.disassemble(cs, ip, &str);
+				disasm.disassemble(cs, &ip, &str);
 				ImGui::Text(str);
 			}
 			});

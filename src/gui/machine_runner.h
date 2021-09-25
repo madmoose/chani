@@ -25,6 +25,8 @@ class machine_runner_t {
 		double      next_event;
 	};
 
+	int16_t  debug_cycles = 0;
+
 	uint16_t old_mouse_x = -1;
 	uint16_t old_mouse_y = -1;
 	uint16_t old_mouse_buttons = -1;
@@ -53,7 +55,9 @@ public:
 
 	void stop();
 	void pause();
+	bool is_paused() { return state == MACHINE_RUNNER_STATE_PAUSE; }
 	void resume();
+	void debug_run(int cycles);
 
 	void with_machine(const std::function<void(ibm5160_t *)> &f);
 
