@@ -145,15 +145,52 @@ void main_window_t::create_window_disasm() {
 				}
 				const char* str;
 				disasm.disassemble(cs, &ip, &str);
-				ImGui::Text(str);
+				print_disasm(str);
 			}
 			});
 		ImGui::End();
 	}
 }
 
-void main_window_t::glfw_render_frame()
-{
+void main_window_t::print_disasm(const char* str) {
+	if (str[10] == 'j') {
+		// Must be a JUMP.
+		ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.5f, 1.0f), str);
+	}
+	else if(str[10] == 'p' && str[11] == 'u') {
+		// Must be a PUSH.
+		ImGui::TextColored(ImVec4(1.0f, 0.5f, 1.0f, 1.0f), str);
+	}
+	else if (str[10] == 'p' && str[11] == 'o') {
+		// Must be a POP.
+		ImGui::TextColored(ImVec4(0.5f, 1.0f, 1.0f, 1.0f), str);
+	}
+	else if (str[10] == 'r' && str[11] == 'e') {
+		// Must be a RET.
+		ImGui::TextColored(ImVec4(0.2f, 0.5f, 0.5f, 1.0f), str);
+	}
+	else if (str[10] == 'c' && str[11] == 'a') {
+		// Must be a CALL.
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 1.0f, 1.0f), str);
+	}
+	else if (str[10] == 'i' && str[11] == 'n' && str[12] == 't') {
+		// Must be a INT.
+		ImGui::TextColored(ImVec4(0.6f, 0.6f, 1.0f, 1.0f), str);
+	}
+	else if (str[10] == 't') {
+		// Must be a TEST.
+		ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.8f, 1.0f), str);
+	}
+	else if (str[10] == 'm' && str[11] == 'o') {
+		// Must be a MOV.
+		ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.8f, 1.0f), str);
+	}
+	else {
+		ImGui::Text(str);
+	}
+}
+
+void main_window_t::glfw_render_frame() {
 	ImGui::Render();
 	int display_w, display_h;
 	glfwGetFramebufferSize(window, &display_w, &display_h);
@@ -165,8 +202,7 @@ void main_window_t::glfw_render_frame()
 	glfwSwapBuffers(window);
 }
 
-void main_window_t::create_window_framebuffer(texture_t& frame_texture, int& frame_x, int& frame_y, uint16_t& mouse_btn)
-{
+void main_window_t::create_window_framebuffer(texture_t& frame_texture, int& frame_x, int& frame_y, uint16_t& mouse_btn) {
 	if (ImGui::Begin("Framebuffer")) {
 		if (ImGui::BeginChild(123, ImVec2(0, 0), false, ImGuiWindowFlags_NoMove)) {
 			ImVec2 wpos = ImGui::GetWindowPos();

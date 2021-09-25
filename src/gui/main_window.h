@@ -18,6 +18,7 @@ private:
 	void create_window_mouse_state(int frame_x, int frame_y, const uint16_t& mouse_btn);
 	void create_window_cpu_state();
 	void create_window_disasm();
+	void print_disasm(const char* str);
 
 public:
 	main_window_t(machine_runner_t *machine_runner) :
