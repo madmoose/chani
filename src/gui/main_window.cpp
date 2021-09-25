@@ -140,56 +140,17 @@ void main_window_t::create_window_disasm() {
 			uint16_t ip = machine->cpu->ip;
 			for (int i = 0; i != 20; ++i) {
 				if (i == 0) {
-					ImGui::Text("> ");
+					ImGui::Text("-> ");
 					ImGui::SameLine();
 				}
 				const char* str;
 				disasm.disassemble(cs, &ip, &str);
-				print_disasm(str);
+				ImGui::Text(str);
 			}
 			});
 		ImGui::End();
 	}
 }
-
-void main_window_t::print_disasm(const char* str) {
-	if (str[10] == 'j') {
-		// Must be a JUMP.
-		ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.5f, 1.0f), str);
-	}
-	else if(str[10] == 'p' && str[11] == 'u') {
-		// Must be a PUSH.
-		ImGui::TextColored(ImVec4(1.0f, 0.5f, 1.0f, 1.0f), str);
-	}
-	else if (str[10] == 'p' && str[11] == 'o') {
-		// Must be a POP.
-		ImGui::TextColored(ImVec4(0.5f, 1.0f, 1.0f, 1.0f), str);
-	}
-	else if (str[10] == 'r' && str[11] == 'e') {
-		// Must be a RET.
-		ImGui::TextColored(ImVec4(0.2f, 0.5f, 0.5f, 1.0f), str);
-	}
-	else if (str[10] == 'c' && str[11] == 'a') {
-		// Must be a CALL.
-		ImGui::TextColored(ImVec4(0.6f, 0.6f, 1.0f, 1.0f), str);
-	}
-	else if (str[10] == 'i' && str[11] == 'n' && str[12] == 't') {
-		// Must be a INT.
-		ImGui::TextColored(ImVec4(0.6f, 0.6f, 1.0f, 1.0f), str);
-	}
-	else if (str[10] == 't') {
-		// Must be a TEST.
-		ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.8f, 1.0f), str);
-	}
-	else if (str[10] == 'm' && str[11] == 'o') {
-		// Must be a MOV.
-		ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.8f, 1.0f), str);
-	}
-	else {
-		ImGui::Text(str);
-	}
-}
-
 void main_window_t::glfw_render_frame() {
 	ImGui::Render();
 	int display_w, display_h;
