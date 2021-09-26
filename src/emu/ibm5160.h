@@ -5,6 +5,8 @@
 #include "emu/machine.h"
 #include "support/types.h"
 
+#define MEMORY_SIZE     0x100000
+
 class bios_t;
 class dos_t;
 class i8086_t;

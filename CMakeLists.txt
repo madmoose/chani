@@ -33,6 +33,7 @@ target_include_directories(chani PRIVATE
 	3rdparty/imgui/
 	3rdparty/imgui/backends/
 	3rdparty/imgui/examples/libs/gl3w/
+	3rdparty/imgui_club/imgui_memory_editor/
 )
 target_sources(chani PRIVATE
 	3rdparty/imgui/backends/imgui_impl_glfw.cpp

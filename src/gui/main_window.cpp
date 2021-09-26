@@ -18,6 +18,7 @@
 
 #include <cstdio>
 #include <thread>
+#include <imgui_memory_editor.h>
 
 void main_window_t::initialize_glfw() {
 	glfwSetErrorCallback([](int error, const char *desc) {
@@ -110,11 +111,23 @@ void main_window_t::loop() {
 		create_window_mouse_state(frame_x, frame_y, mouse_btn);
 		create_window_cpu_state();
 		create_window_disasm();
+		create_window_hexview();
 
 		glfw_render_frame();
 	}
 
 	machine_runner->stop();
+}
+
+void main_window_t::create_window_hexview() {
+	static MemoryEditor mem_edit_2;
+	if (ImGui::Begin("Memory View"))
+	{
+		machine_runner->with_machine([&](ibm5160_t* machine) {
+			mem_edit_2.DrawContents(machine->memory, MEMORY_SIZE);
+			});
+		ImGui::End();
+	}
 }
 
 void main_window_t::create_window_disasm() {

@@ -12,7 +12,6 @@
 #include <cstdio>
 #include <cstring>
 
-#define MEMORY_SIZE     0x100000
 #define DIRTY_PAGE_SIZE     4096
 
 ibm5160_t::ibm5160_t() {
