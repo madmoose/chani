@@ -85,13 +85,13 @@ void main_window_t::loop() {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 		ImGuiIO& io = ImGui::GetIO();
-		if (io.KeyAlt && io.KeysDown[GLFW_KEY_PAUSE]) {
+		if (io.KeyAlt && ImGui::IsKeyReleased(GLFW_KEY_PAUSE)) {
 			machine_runner->pause();
 		}
-		if (io.KeysDown[GLFW_KEY_F5]) {
+		if (ImGui::IsKeyReleased(GLFW_KEY_F5)) {
 			machine_runner->resume();
 		}
-		if (machine_runner->is_paused() && io.KeysDown[GLFW_KEY_F10]) {
+		if (machine_runner->is_paused() && ImGui::IsKeyReleased(GLFW_KEY_F10)) {
 			machine_runner->debug_run(1);
 		}
 
