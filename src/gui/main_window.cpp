@@ -120,11 +120,11 @@ void main_window_t::loop() {
 }
 
 void main_window_t::create_window_hexview() {
-	static MemoryEditor mem_edit_2;
+	static MemoryEditor mem_editor;
 	if (ImGui::Begin("Memory View"))
 	{
 		machine_runner->with_machine([&](ibm5160_t* machine) {
-			mem_edit_2.DrawContents(machine->memory, MEMORY_SIZE);
+			mem_editor.DrawContents(machine->memory, MEMORY_SIZE);
 			});
 		ImGui::End();
 	}
