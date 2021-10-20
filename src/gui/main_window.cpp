@@ -3,6 +3,7 @@
 #include "emu/i8086.h"
 #include "emu/ibm5160.h"
 #include "emu/vga.h"
+#include "gui/disassembler_view.h"
 #include "gui/machine_runner.h"
 #include "gui/texture.h"
 
@@ -72,6 +73,11 @@ void main_window_t::loop() {
 	texture_t palette_texture(16, 16);
 
 	// bool show_demo_window = true;
+	bool show_disassembler = true;
+
+	auto disassembler_view = new disassembler_view_t;
+
+	disassembler_view->focus({0x01ed, 0x0000});
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -157,6 +163,10 @@ void main_window_t::loop() {
 			ImGui::Text("Button: %d", mouse_btn);
 			ImGui::End();
 		}
+
+		machine_runner->with_machine([&](ibm5160_t *machine) {
+			disassembler_view->draw("Disassembler", &show_disassembler, [&machine](address_space_t s, uint32_t addr, width_t w) { return machine->read(s, addr, w); });
+		});
 
 		machine_runner->with_machine([&](ibm5160_t* machine) {
 			if (ImGui::Begin("CPU State")) {

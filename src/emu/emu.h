@@ -28,4 +28,25 @@ typedef std::function<void(address_space_t, uint32_t, width_t, uint16_t)> write_
 
 typedef std::function<void()> callback_t;
 
+struct csip_addr_t {
+	uint16_t cs;
+	uint16_t ip;
+
+	uint32_t ea() {
+		return (cs << 4) + ip;
+	}
+
+	csip_addr_t& operator--() {
+		if (ip > 0) {
+			--ip;
+		} else if (cs >= 0x1000) {
+			cs -= 0x1000;
+		} else {
+			ip = (cs << 4);
+			cs = 0;
+		}
+		return *this;
+	}
+};
+
 #endif
