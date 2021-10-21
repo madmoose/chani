@@ -4,8 +4,8 @@
 #include "dos/dos.h"
 #include "emu/i8086.h"
 #include "emu/i8254_pit.h"
-#include "emu/vga.h"
 #include "emu/keyboard.h"
+#include "emu/vga.h"
 #include "support/types.h"
 
 #include <cassert>

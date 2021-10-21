@@ -473,7 +473,7 @@ void dos_t::int21_3d_open_file() {
 	}
 
 #ifdef _MSC_VER
-	FILE* f = _wfopen(path.c_str(), L"rb");
+	FILE *f = _wfopen(path.c_str(), L"rb");
 #else
 	FILE *f = fopen(path.c_str(), "rb");
 #endif
