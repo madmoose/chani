@@ -42,7 +42,7 @@ i8086_t::i8086_t() {
 }
 
 uint64_t i8086_t::next_cycles() {
-	return 1;
+	return UINT64_MAX;
 }
 
 uint64_t i8086_t::run_cycles(uint64_t cycles) {

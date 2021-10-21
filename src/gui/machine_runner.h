@@ -5,6 +5,7 @@
 
 #include <functional>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -12,7 +13,7 @@ class ibm5160_t;
 
 class machine_runner_t {
 	struct device_next_event_t {
-		const char *name;
+		std::string name;
 		device_t   *device;
 		double      next_event;
 	};

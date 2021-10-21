@@ -14,12 +14,15 @@
 machine_runner_t::machine_runner_t(ibm5160_t *machine) :
 	machine(machine)
 {
-	devices = {
-		{ "cpu", machine->cpu, 0.0 },
-		{ "vga", machine->vga, 0.0 },
-		{ "pit", machine->pit, 0.0 },
-		{ "keyboard", machine->keyboard, 0.0 },
-	};
+	for (const auto &registered_device : machine->devices) {
+		devices.push_back({
+			device_next_event_t {
+				registered_device.name,
+				registered_device.device,
+				0.0
+			}
+		});
+	}
 
 	thread = new std::thread(&machine_runner_t::loop, this);
 }
@@ -65,14 +68,8 @@ void machine_runner_t::run_until_next_event() {
 		d.next_event = device_cycles / d.device->frequency_in_mhz();
 	}
 
-	// Sort devices by their next event
-	std::sort(devices.begin(), devices.end(), [](auto a, auto b) {
+	auto next_event_device = std::min_element(devices.begin(), devices.end(), [](auto a, auto b) {
 		return a.next_event < b.next_event;
-	});
-
-	// Find next event across all devices (in microseconds)
-	auto next_event_device = std::find_if(devices.begin(), devices.end(), [&](auto a) {
-		return a.device != machine->cpu && a.next_event != 0;
 	});
 	double next_event = next_event_device->next_event;
 
@@ -82,9 +79,6 @@ void machine_runner_t::run_until_next_event() {
 	// Run all devices until next event
 	std::lock_guard<std::mutex> lock(machine_mutex);
 	for (auto &d : devices) {
-		if (d.next_event == 0) {
-			continue;
-		}
 		double   device_frequency = d.device->frequency_in_mhz();
 		uint64_t device_cycles = next_event * device_frequency;
 		d.device->run_cycles(device_cycles);

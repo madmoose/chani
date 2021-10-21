@@ -10,7 +10,7 @@
 keyboard_t::keyboard_t() :
 	data_output_buffer(0),
 	status(0),
-	next_event(0)
+	next_event(UINT64_MAX)
 {
 	glfw_key_state.reset();
 }
@@ -18,19 +18,14 @@ keyboard_t::keyboard_t() :
 // Returns 0 if empty, or 1ms worth of cycles.
 // Something large enough for run_cycles to run and intr 9 to be raised.
 uint64_t keyboard_t::next_cycles() {
-	if (next_event > 0) {
-		return next_event;
-	}
-
-	if (buffer.empty()) {
-		next_event = 0;
-	} else {
-		next_event = 1000 * frequency_in_mhz();
-	}
 	return next_event;
 }
 
 uint64_t keyboard_t::run_cycles(uint64_t cycles) {
+	if (next_event == UINT64_MAX) {
+		return cycles;
+	}
+
 	next_event -= cycles;
 
 	if (next_event == 0) {
@@ -39,6 +34,9 @@ uint64_t keyboard_t::run_cycles(uint64_t cycles) {
 			buffer.pop_front();
 			status |= I8042_STATUS_OUTPUT_BUFFER_FULL;
 			machine->raise_intr(9);
+			next_event = 1000 * frequency_in_mhz();
+		} else {
+			next_event = UINT64_MAX;
 		}
 	}
 
@@ -78,6 +76,7 @@ void keyboard_t::set_key_down(int key_id) {
 			for (byte value : element.make_sequence) {
 				buffer.push_back(value);
 			}
+			next_event = 0;
 			break;
 		}
 	}
@@ -96,6 +95,7 @@ void keyboard_t::set_key_up(int key_id) {
 			for (byte value : element.break_sequence) {
 				buffer.push_back(value);
 			}
+			next_event = 0;
 			break;
 		}
 	}
