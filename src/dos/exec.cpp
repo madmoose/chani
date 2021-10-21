@@ -66,18 +66,18 @@ bool dos_t::exec(file_reader_t &rd) {
 		writele16(p, readle16(p) + load_segment);
 	}
 
-	machine->cpu->cx = 0xff;
-	machine->cpu->dx = 0x1dd;
-	machine->cpu->di = 0x3cbc;
-	machine->cpu->bp = 0x91c;
-	machine->cpu->set_if(true);
+	cpu->cx = 0xff;
+	cpu->dx = 0x1dd;
+	cpu->di = 0x3cbc;
+	cpu->bp = 0x91c;
+	cpu->set_if(true);
 
-	machine->cpu->ds = psp_segment;
-	machine->cpu->es = psp_segment;
-	machine->cpu->ss = head.e_ss + load_segment;
-	machine->cpu->sp = head.e_sp;
-	machine->cpu->cs = head.e_cs + load_segment;
-	machine->cpu->ip = head.e_ip;
+	cpu->ds = psp_segment;
+	cpu->es = psp_segment;
+	cpu->ss = head.e_ss + load_segment;
+	cpu->sp = head.e_sp;
+	cpu->cs = head.e_cs + load_segment;
+	cpu->ip = head.e_ip;
 
 #if 0
 	for (int i = 0; i != 64; ++i) {

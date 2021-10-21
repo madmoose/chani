@@ -6,7 +6,7 @@
 #include <algorithm>
 
 void dos_t::int33() {
-	switch (machine->cpu->ax) {
+	switch (cpu->ax) {
 		case 0x0000: int33_0000_reset_driver_and_read_status(); break;
 		case 0x0001: int33_0001_show_mouse_cursor(); break;
 		case 0x0002: int33_0002_hide_mouse_cursor(); break;
@@ -26,7 +26,7 @@ void dos_t::int33() {
 		case 0x0010: int33_0010_define_screen_region_for_updating(); break;
 	}
 
-	machine->cpu->op_iret();
+	cpu->op_iret();
 }
 
 void dos_t::set_mouse(uint16_t x, uint16_t y, uint16_t buttons) {
@@ -37,8 +37,8 @@ void dos_t::set_mouse(uint16_t x, uint16_t y, uint16_t buttons) {
 
 void dos_t::int33_0000_reset_driver_and_read_status() {
 	// unimplemented_int(__FUNCTION__);
-	machine->cpu->ax = 0xffff;
-	machine->cpu->bx =      3;
+	cpu->ax = 0xffff;
+	cpu->bx =      3;
 }
 
 void dos_t::int33_0001_show_mouse_cursor() {
@@ -50,14 +50,14 @@ void dos_t::int33_0002_hide_mouse_cursor() {
 }
 
 void dos_t::int33_0003_return_position_and_button_status() {
-	machine->cpu->cx = mouse_x & 0xfffe;
-	machine->cpu->dx = mouse_y;
-	machine->cpu->bx = mouse_buttons;
+	cpu->cx = mouse_x & 0xfffe;
+	cpu->dx = mouse_y;
+	cpu->bx = mouse_buttons;
 }
 
 void dos_t::int33_0004_position_mouse_cursor() {
-	mouse_x = machine->cpu->cx;
-	mouse_y = machine->cpu->dx;
+	mouse_x = cpu->cx;
+	mouse_y = cpu->dx;
 
 	// printf("mouse position: (%d, %d)\n", mouse_x, mouse_y);
 }
@@ -71,12 +71,12 @@ void dos_t::int33_0006_return_button_release_data() {
 }
 
 void dos_t::int33_0007_define_horizontal_cursor_range() {
-	printf("int33,7: horizontal mouse range %d-%d\n", machine->cpu->cx, machine->cpu->dx);
+	printf("int33,7: horizontal mouse range %d-%d\n", cpu->cx, cpu->dx);
 	// unimplemented_int(__FUNCTION__);
 }
 
 void dos_t::int33_0008_define_vertical_cursor_range() {
-	printf("int33,8: vertical mouse range %d-%d\n", machine->cpu->cx, machine->cpu->dx);
+	printf("int33,8: vertical mouse range %d-%d\n", cpu->cx, cpu->dx);
 	// unimplemented_int(__FUNCTION__);
 }
 

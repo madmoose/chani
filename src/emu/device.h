@@ -3,14 +3,14 @@
 
 #include "support/types.h"
 
-class ibm5160_t;
+class machine_t;
 
 class device_t {
 protected:
-	ibm5160_t *machine;
+	machine_t *machine;
 
 public:
-	void set_machine(ibm5160_t *a_machine) {
+	void set_machine(machine_t *a_machine) {
 		machine = a_machine;
 	}
 

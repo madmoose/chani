@@ -2,7 +2,7 @@
 #define EMU_I8086
 
 #include "emu/emu.h"
-#include "emu/device.h"
+#include "emu/cpu_device.h"
 #include "support/types.h"
 
 #include <functional>
@@ -15,7 +15,7 @@ struct i8086_addr_t {
 	uint16_t ofs;
 };
 
-class i8086_t : public device_t {
+class i8086_t : public cpu_device_t {
 	int instr_count = 0;
 	uint64_t cycles = 0;
 

@@ -30,8 +30,8 @@ void bios_t::int08() {
 	// TODO: Handle diskette motor countdown?
 
 	// TODO: Tailcall int 1c, any way to handle this "properly"?
-	machine->cpu->ip = machine->mem_read16(0x0000, 4 * 0x1c);
-	machine->cpu->cs = machine->mem_read16(0x0000, 4 * 0x1c + 2);
+	cpu->ip = machine->mem_read16(0x0000, 4 * 0x1c);
+	cpu->cs = machine->mem_read16(0x0000, 4 * 0x1c + 2);
 
 	// TODO: EOI
 }

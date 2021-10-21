@@ -87,7 +87,7 @@ uint64_t i8254_pit_t::run_cycles(uint64_t cycles) {
 		counter[i].run_cycles(cycles);
 	}
 	if (counter[0].counting_element == 0) {
-		machine->cpu->raise_intr(0x08);
+		machine->raise_intr(0x08);
 		counter[0].counting_element = counter[0].count_register;
 		if (counter[0].counting_element == 0) {
 			counter[0].counting_element = 0x10000;

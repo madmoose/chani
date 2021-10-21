@@ -8,10 +8,12 @@
 
 class file_reader_t;
 class ibm5160_t;
+class i8086_t;
 
 class dos_t {
 public:
 	ibm5160_t *machine = nullptr;
+	i8086_t   *cpu;
 
 	bool ctrl_break = true;
 

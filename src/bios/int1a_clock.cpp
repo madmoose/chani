@@ -4,7 +4,7 @@
 #include "emu/ibm5160.h"
 
 void bios_t::int1a() {
-	switch (machine->cpu->ax) {
+	switch (cpu->ax) {
 		case 0x0000: int1a_00_read_system_clock_counter(); break;
 		case 0x0001: int1a_01_set_system_clock_counter(); break;
 		case 0x0002: int1a_02_read_real_time_clock_time(); break;
@@ -20,7 +20,7 @@ void bios_t::int1a() {
 		case 0x0080: int1a_80_set_up_sound_multiplexer(); break;
 	}
 
-	machine->cpu->op_iret();
+	cpu->op_iret();
 }
 
 void bios_t::int1a_00_read_system_clock_counter() {

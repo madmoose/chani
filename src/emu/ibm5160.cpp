@@ -19,27 +19,22 @@ ibm5160_t::ibm5160_t() {
 	memory = (byte *)malloc(MEMORY_SIZE);
 	memset(memory, 0, MEMORY_SIZE);
 
-	cpu = new i8086_t;
-	cpu->set_machine(this);
-	cpu->read  = THIS_READ_CB(read);
-	cpu->write = THIS_WRITE_CB(write);
+	cpu = add_device("cpu", new i8086_t);
+	((i8086_t *)cpu)->read  = THIS_READ_CB(read);
+	((i8086_t *)cpu)->write = THIS_WRITE_CB(write);
 
-	pit = new i8254_pit_t;
-	pit->set_machine(this);
-
-	vga = new vga_t;
-	vga->set_machine(this);
+	pit = add_device("pit", new i8254_pit_t);
+	vga = add_device("vga", new vga_t);
+	keyboard = add_device("kbd", new keyboard_t);
 
 	bios = new bios_t;
 	bios->machine = this;
-	bios->install();
 
-	dos  = new dos_t;
+	dos = new dos_t;
 	dos->machine = this;
-	dos->install();
 
-	keyboard = new keyboard_t;
-	keyboard->set_machine(this);
+	bios->install();
+	dos->install();
 }
 
 uint16_t ibm5160_t::read(address_space_t address_space, uint32_t addr, width_t w) {

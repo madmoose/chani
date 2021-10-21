@@ -7,7 +7,7 @@
 #include <cctype>
 
 void bios_t::int10() {
-	byte ah = readhi(machine->cpu->ax);
+	byte ah = readhi(cpu->ax);
 
 	switch (ah) {
 		case 0x00: int10_00_set_video_mode(); break;
@@ -30,12 +30,12 @@ void bios_t::int10() {
 		case 0x13: int10_13_write_string(); break;
 	}
 
-	machine->cpu->op_iret();
+	cpu->op_iret();
 }
 
 void bios_t::int10_00_set_video_mode() {
 	// unimplemented_int(__FUNCTION__);
-	printf("INT10: Set video mode %x\n", readlo(machine->cpu->ax));
+	printf("INT10: Set video mode %x\n", readlo(cpu->ax));
 }
 
 void bios_t::int10_01_set_text_mode_cursor_shape() {
@@ -92,14 +92,14 @@ void bios_t::int10_0d_read_graphics_pixel() {
 
 void bios_t::int10_0e_teletype_output() {
 	// unimplemented_int(__FUNCTION__);
-	 byte c = readlo(machine->cpu->ax);
+	 byte c = readlo(cpu->ax);
 	 printf("%c", isprint(c) ? c : '.');
 }
 
 void bios_t::int10_0f_get_current_video_mode() {
-	writehi(machine->cpu->ax, 80);
-	writelo(machine->cpu->ax,  3);
-	writehi(machine->cpu->bx,  0);
+	writehi(cpu->ax, 80);
+	writelo(cpu->ax,  3);
+	writehi(cpu->bx,  0);
 }
 
 void bios_t::int10_11_change_text_mode_character_set() {

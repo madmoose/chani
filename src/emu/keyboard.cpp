@@ -38,7 +38,7 @@ uint64_t keyboard_t::run_cycles(uint64_t cycles) {
 			data_output_buffer = buffer.front();
 			buffer.pop_front();
 			status |= I8042_STATUS_OUTPUT_BUFFER_FULL;
-			machine->cpu->raise_intr(9);
+			machine->raise_intr(9);
 		}
 	}
 

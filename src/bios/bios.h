@@ -1,10 +1,12 @@
 #ifndef BIOS_BIOS_H
 
 class ibm5160_t;
+class i8086_t;
 
 class bios_t {
 public:
 	ibm5160_t *machine = nullptr;
+	i8086_t   *cpu;
 
 	void install();
 	void unimplemented_int(const char *func);

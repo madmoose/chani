@@ -2,6 +2,7 @@
 #define EMU_IBM5160
 
 #include "emu/emu.h"
+#include "emu/machine.h"
 #include "support/types.h"
 
 class bios_t;
@@ -11,12 +12,10 @@ class i8254_pit_t;
 class vga_t;
 class keyboard_t;
 
-class ibm5160_t {
+class ibm5160_t : public machine_t {
 public:
 	bios_t      *bios;
-	byte        *memory;
 	dos_t       *dos;
-	i8086_t     *cpu;
 	i8254_pit_t *pit;
 	vga_t       *vga;
 	keyboard_t  *keyboard;

@@ -11,7 +11,7 @@
 #define CHANIDEBUG 0
 
 void dos_t::int21() {
-	byte ah = readhi(machine->cpu->ax);
+	byte ah = readhi(cpu->ax);
 
 	switch (ah) {
 		case 0x00: int21_00_program_terminate(); break;
@@ -127,31 +127,31 @@ void dos_t::int21() {
 			unimplemented_int(__FUNCTION__);
 	}
 
-	machine->cpu->op_iret();
+	cpu->op_iret();
 }
 
 void dos_t::stc() {
-	uint16_t ip = machine->cpu->pop();
-	uint16_t cs = machine->cpu->pop();
-	uint16_t psw = machine->cpu->pop();
+	uint16_t ip = cpu->pop();
+	uint16_t cs = cpu->pop();
+	uint16_t psw = cpu->pop();
 
 	psw |= 0x01;
 
-	machine->cpu->push(psw);
-	machine->cpu->push(cs);
-	machine->cpu->push(ip);
+	cpu->push(psw);
+	cpu->push(cs);
+	cpu->push(ip);
 }
 
 void dos_t::clc() {
-	uint16_t ip = machine->cpu->pop();
-	uint16_t cs = machine->cpu->pop();
-	uint16_t psw = machine->cpu->pop();
+	uint16_t ip = cpu->pop();
+	uint16_t cs = cpu->pop();
+	uint16_t psw = cpu->pop();
 
 	psw &= ~0x01;
 
-	machine->cpu->push(psw);
-	machine->cpu->push(cs);
-	machine->cpu->push(ip);
+	cpu->push(psw);
+	cpu->push(cs);
+	cpu->push(ip);
 }
 
 void dos_t::int21_00_program_terminate() {
@@ -255,7 +255,7 @@ void dos_t::int21_18_reserved() {
 }
 
 void dos_t::int21_19_get_default_drive() {
-	writelo(machine->cpu->ax, 2);
+	writelo(cpu->ax, 2);
 }
 
 void dos_t::int21_1a_set_disk_transfer_address() {
@@ -359,12 +359,12 @@ void dos_t::int21_32_get_disk_parameter_block_for_specified_drive() {
 }
 
 void dos_t::int21_33_get_or_set_ctrl_break() {
-	switch (readlo(machine->cpu->ax)) {
+	switch (readlo(cpu->ax)) {
 		case 0x00: // get ctrl-break checking flag
-			writelo(machine->cpu->dx, ctrl_break ? 1 : 0);
+			writelo(cpu->dx, ctrl_break ? 1 : 0);
 			break;
 		case 0x01: // set ctrl-break checking flag
-			ctrl_break = !!readlo(machine->cpu->dx);
+			ctrl_break = !!readlo(cpu->dx);
 			break;
 		default:
 			unimplemented_int(__FUNCTION__);
@@ -377,9 +377,9 @@ void dos_t::int21_34_get_indos_flag_pointer() {
 
 void dos_t::int21_35_get_interrupt_vector() {
 	// unimplemented_int(__FUNCTION__);
-	machine->cpu->es = 0xc7ff;
-	machine->cpu->bx = 0x0010;
-	printf("[%04x:%04x] Getting interrupt vector %02xh\n", machine->cpu->cs, machine->cpu->ip, readlo(machine->cpu->ax));
+	cpu->es = 0xc7ff;
+	cpu->bx = 0x0010;
+	printf("[%04x:%04x] Getting interrupt vector %02xh\n", cpu->cs, cpu->ip, readlo(cpu->ax));
 }
 
 void dos_t::int21_36_get_free_disk_space() {
@@ -410,8 +410,8 @@ void dos_t::int21_3c_create_or_truncate_file() {
 	char filepath[257];
 
 	int len = 0;
-	uint16_t ds = machine->cpu->ds;
-	uint16_t dx = machine->cpu->dx;
+	uint16_t ds = cpu->ds;
+	uint16_t dx = cpu->dx;
 	byte c;
 
 	while (len < 256 && (c = machine->read(MEM, 0x10*ds + dx++))) {
@@ -428,15 +428,15 @@ void dos_t::int21_3c_create_or_truncate_file() {
 	open_files.push_back(f);
 
 	clc();
-	machine->cpu->ax = fd;
+	cpu->ax = fd;
 }
 
 void dos_t::int21_3d_open_file() {
 	char filepath[257];
 
 	int len = 0;
-	uint16_t ds = machine->cpu->ds;
-	uint16_t dx = machine->cpu->dx;
+	uint16_t ds = cpu->ds;
+	uint16_t dx = cpu->dx;
 	byte c;
 
 	while (len < 256 && (c = machine->read(MEM, 0x10*ds + dx++))) {
@@ -468,7 +468,7 @@ void dos_t::int21_3d_open_file() {
 
 	if (!found_file) {
 		stc();
-		machine->cpu->ax = 0x02;
+		cpu->ax = 0x02;
 		return;
 	}
 
@@ -485,11 +485,11 @@ void dos_t::int21_3d_open_file() {
 	open_files.push_back(f);
 
 	clc();
-	machine->cpu->ax = fd;
+	cpu->ax = fd;
 }
 
 void dos_t::int21_3e_close_file() {
-	FILE *f = open_files.at(machine->cpu->bx - first_fd);
+	FILE *f = open_files.at(cpu->bx - first_fd);
 
 	assert(f);
 
@@ -503,27 +503,27 @@ void dos_t::int21_3e_close_file() {
 }
 
 void dos_t::int21_3f_read_file_or_device() {
-	FILE     *f     = open_files.at(machine->cpu->bx - first_fd);
-	uint16_t  count = machine->cpu->cx;
-	byte     *buf   = machine->memory + (0x10 * machine->cpu->ds + machine->cpu->dx);
+	FILE     *f     = open_files.at(cpu->bx - first_fd);
+	uint16_t  count = cpu->cx;
+	byte     *buf   = machine->memory + (0x10 * cpu->ds + cpu->dx);
 
 	assert(f);
 	size_t r = fread(buf, 1, count, f);
 
 	clc();
-	machine->cpu->ax = r;
+	cpu->ax = r;
 }
 
 void dos_t::int21_40_write_file_or_device() {
-	FILE     *f = open_files.at(machine->cpu->bx - first_fd);
-	uint16_t  count = machine->cpu->cx;
-	byte     *buf   = machine->memory + (0x10 * machine->cpu->ds + machine->cpu->dx);
+	FILE     *f = open_files.at(cpu->bx - first_fd);
+	uint16_t  count = cpu->cx;
+	byte     *buf   = machine->memory + (0x10 * cpu->ds + cpu->dx);
 
 	assert(f);
 	uint16_t bytes_written = fwrite(buf, 1, count, f);
 
 	clc();
-	machine->cpu->ax = bytes_written;
+	cpu->ax = bytes_written;
 }
 
 void dos_t::int21_41_delete_file() {
@@ -531,18 +531,18 @@ void dos_t::int21_41_delete_file() {
 }
 
 void dos_t::int21_42_move_file_pointer() {
-	FILE *f = open_files.at(machine->cpu->bx - first_fd);
-	size_t offset = (((uint32_t)machine->cpu->cx) << 16) + machine->cpu->dx;
+	FILE *f = open_files.at(cpu->bx - first_fd);
+	size_t offset = (((uint32_t)cpu->cx) << 16) + cpu->dx;
 
 	assert(f);
 
 	int whence;
-	switch (readlo(machine->cpu->ax)) {
+	switch (readlo(cpu->ax)) {
 		case 0: whence = SEEK_SET; break;
 		case 1: whence = SEEK_CUR; break;
 		case 2: whence = SEEK_END; break;
 		default:
-			machine->cpu->ax = 0x19; // Seek error
+			cpu->ax = 0x19; // Seek error
 			stc();
 			return;
 	}
@@ -553,8 +553,8 @@ void dos_t::int21_42_move_file_pointer() {
 	size_t position = ftell(f);
 
 	clc();
-	machine->cpu->dx = (position >> 16);
-	machine->cpu->ax = (position >>  0) & 0xffff;
+	cpu->dx = (position >> 16);
+	cpu->ax = (position >>  0) & 0xffff;
 }
 
 void dos_t::int21_43_get_or_set_file_attributes() {
