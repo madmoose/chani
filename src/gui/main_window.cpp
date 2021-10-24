@@ -56,8 +56,6 @@ void main_window_t::initialize_imgui() {
 	ImGui::CreateContext();
 
 	ImGuiIO &io = ImGui::GetIO();
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
 	ImGui::StyleColorsDark();
 
@@ -68,10 +66,6 @@ void main_window_t::initialize_imgui() {
 void main_window_t::loop() {
 	texture_t frame_texture(320, 200);
 	byte dac_ram[0x300];
-
-	// bool show_demo_window = true;
-
-		// bool show_demo_window = true;
 	bool show_disassembler = true;
 
 	auto disassembler_view = new disassembler_view_t;
@@ -108,9 +102,7 @@ void main_window_t::loop() {
 		create_window_framebuffer(frame_texture, frame_x, frame_y, mouse_btn);
 		capture_keyboard();
 		create_window_palette_state(dac_ram);
-		create_window_mouse_state(frame_x, frame_y, mouse_btn);
-		create_window_cpu_state();
-		create_window_disasm();
+		create_window_debug(frame_x, frame_y, mouse_btn);
 		create_window_hexview();
 
 		glfw_render_frame();
@@ -130,40 +122,6 @@ void main_window_t::create_window_hexview() {
 	}
 }
 
-void main_window_t::create_window_disasm() {
-	if (ImGui::Begin("Disassembly")) {
-		machine_runner->with_machine([&](ibm5160_t* machine) {
-			if (ImGui::Button("Pause")) {
-				machine_runner->pause();
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Resume")) {
-				machine_runner->resume();
-			}
-			if (machine_runner->is_paused()) {
-				ImGui::SameLine();
-				if (ImGui::Button("Step over")) {
-					machine_runner->debug_run(1);
-				}
-			}
-			disasm_i8086_t disasm;
-			disasm.read = [&machine](address_space_t s, uint32_t addr, width_t w) { return machine->read(s, addr, w); };
-			disasm.always_show_mem_width = true;
-			uint16_t cs = machine->cpu->cs;
-			uint16_t ip = machine->cpu->ip;
-			for (int i = 0; i != 20; ++i) {
-				if (i == 0) {
-					ImGui::Text("-> ");
-					ImGui::SameLine();
-				}
-				const char* str;
-				disasm.disassemble(cs, &ip, &str);
-				ImGui::Text(str);
-			}
-			});
-		ImGui::End();
-	}
-}
 void main_window_t::glfw_render_frame() {
 	ImGui::Render();
 	int display_w, display_h;
@@ -244,27 +202,36 @@ void main_window_t::create_window_palette_state(byte dac_ram[768]) {
 	}
 }
 
-void main_window_t::create_window_mouse_state(int frame_x, int frame_y, const uint16_t& mouse_btn) {
-	if (ImGui::Begin("Framebuffer Mouse State")) {
-		ImGui::Text("X: %d", frame_x);
-		ImGui::Text("Y: %d", frame_y);
-		ImGui::Text("Button: %d", mouse_btn);
-		ImGui::End();
-	}
-}
-
-void main_window_t::create_window_cpu_state() {
-	machine_runner->with_machine([&](ibm5160_t *machine) {
-		if (ImGui::Begin("CPU State")) {
-			if (ImGui::BeginTable("Registers", 2,
-				ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInner
-				| ImGuiTableBgTarget_CellBg | ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_Reorderable))
+void main_window_t::create_window_debug(int frame_x, int frame_y, const uint16_t& mouse_btn) {
+	if (ImGui::Begin("Debug")) {
+		ImGui::Text("Pointer X: %d", frame_x);
+		ImGui::Text("Pointer Y: %d", frame_y);
+		if (ImGui::BeginChild("Control")) {
+			machine_runner->with_machine([&](ibm5160_t* machine) {
+				if (ImGui::Button("Pause")) {
+					machine_runner->pause();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Resume")) {
+					machine_runner->resume();
+				}
+				if (machine_runner->is_paused()) {
+					ImGui::SameLine();
+					if (ImGui::Button("Step over")) {
+						machine_runner->debug_run(1);
+					}
+				}
+				});
+			machine_runner->with_machine([&](ibm5160_t* machine) {
+				if (ImGui::BeginTable("Registers", 2,
+					ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInner
+					| ImGuiTableBgTarget_CellBg | ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_Reorderable))
 				{
-					i8086_t *cpu = (i8086_t *)machine->cpu;
+					i8086_t* cpu = (i8086_t*)machine->cpu;
 
 					ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
 					ImGui::TableNextColumn();
-					ImGui::Text("Field");
+					ImGui::Text("CPU Field");
 					ImGui::TableNextColumn();
 					ImGui::Text("Value");
 					ImGui::TableNextColumn();
@@ -393,9 +360,11 @@ void main_window_t::create_window_cpu_state() {
 					ImGui::Text("%d", cpu->int_number);
 					ImGui::EndTable();
 				}
-				ImGui::End();
-			}
-		});
+				});
+			ImGui::EndChild();
+		}
+		ImGui::End();
+	}
 }
 
 void main_window_t::uninitialize_imgui() {
