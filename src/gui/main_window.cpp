@@ -115,7 +115,7 @@ void main_window_t::create_window_hexview() {
 	static MemoryEditor mem_editor;
 	if (ImGui::Begin("Memory View"))
 	{
-		machine_runner->with_machine([&](ibm5160_t* machine) {
+		machine_runner->with_machine([&](ibm5160_t *machine) {
 			mem_editor.DrawContents(machine->memory, MEMORY_SIZE);
 			});
 		ImGui::End();
@@ -134,7 +134,7 @@ void main_window_t::glfw_render_frame() {
 	glfwSwapBuffers(window);
 }
 
-void main_window_t::create_window_framebuffer(texture_t& frame_texture, int& frame_x, int& frame_y, uint16_t& mouse_btn) {
+void main_window_t::create_window_framebuffer(texture_t &frame_texture, int &frame_x, int &frame_y, uint16_t &mouse_btn) {
 	if (ImGui::Begin("Framebuffer")) {
 		if (ImGui::BeginChild(123, ImVec2(0, 0), false, ImGuiWindowFlags_NoMove)) {
 			ImVec2 wpos = ImGui::GetWindowPos();
@@ -202,12 +202,12 @@ void main_window_t::create_window_palette_state(byte dac_ram[768]) {
 	}
 }
 
-void main_window_t::create_window_debug(int frame_x, int frame_y, const uint16_t& mouse_btn) {
+void main_window_t::create_window_debug(int frame_x, int frame_y, const uint16_t &mouse_btn) {
 	if (ImGui::Begin("Debug")) {
 		ImGui::Text("Pointer X: %d", frame_x);
 		ImGui::Text("Pointer Y: %d", frame_y);
 		if (ImGui::BeginChild("Control")) {
-			machine_runner->with_machine([&](ibm5160_t* machine) {
+			machine_runner->with_machine([&](ibm5160_t *machine) {
 				if (ImGui::Button("Pause")) {
 					machine_runner->pause();
 				}
@@ -221,8 +221,6 @@ void main_window_t::create_window_debug(int frame_x, int frame_y, const uint16_t
 						machine_runner->debug_run(1);
 					}
 				}
-				});
-			machine_runner->with_machine([&](ibm5160_t* machine) {
 				if (ImGui::BeginTable("Registers", 2,
 					ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInner
 					| ImGuiTableBgTarget_CellBg | ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_Reorderable))
@@ -360,7 +358,7 @@ void main_window_t::create_window_debug(int frame_x, int frame_y, const uint16_t
 					ImGui::Text("%d", cpu->int_number);
 					ImGui::EndTable();
 				}
-				});
+			});
 			ImGui::EndChild();
 		}
 		ImGui::End();

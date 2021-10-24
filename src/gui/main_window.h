@@ -13,7 +13,7 @@ class main_window_t {
 private:
 	void glfw_render_frame();
 	void capture_keyboard();
-	void create_window_framebuffer(texture_t& frame_texture, int& frame_x, int& frame_y, uint16_t& mouse_btn);
+	void create_window_framebuffer(texture_t &frame_texture, int &frame_x, int  &frame_y, uint16_t &mouse_btn);
 	void create_window_palette_state(byte dac_ram[768]);
 	void create_window_debug(int frame_x, int frame_y, const uint16_t& mouse_btn);
 	void create_window_hexview();
