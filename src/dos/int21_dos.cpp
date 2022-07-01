@@ -1,4 +1,4 @@
-#include "dos/dos.h"
+#include <dos/dos.h>
 
 #include "emu/i8086.h"
 #include "emu/ibm5160.h"
@@ -11,6 +11,9 @@
 #define CHANIDEBUG 0
 
 void dos_t::int21() {
+	in_dos++;
+	save_user_state();
+
 	byte ah = readhi(cpu->ax);
 
 	switch (ah) {
@@ -127,31 +130,12 @@ void dos_t::int21() {
 			unimplemented_int(__FUNCTION__);
 	}
 
+	in_dos--;
+	restore_user_state();
+
+	// Update user flags on stack, iret restores flags from stack
+	cpu->mem_write16(cpu->ss, cpu->sp + 4, user_regs.flags);
 	cpu->op_iret();
-}
-
-void dos_t::stc() {
-	uint16_t ip = cpu->pop();
-	uint16_t cs = cpu->pop();
-	uint16_t psw = cpu->pop();
-
-	psw |= 0x01;
-
-	cpu->push(psw);
-	cpu->push(cs);
-	cpu->push(ip);
-}
-
-void dos_t::clc() {
-	uint16_t ip = cpu->pop();
-	uint16_t cs = cpu->pop();
-	uint16_t psw = cpu->pop();
-
-	psw &= ~0x01;
-
-	cpu->push(psw);
-	cpu->push(cs);
-	cpu->push(ip);
 }
 
 void dos_t::int21_00_program_terminate() {
@@ -203,7 +187,7 @@ void dos_t::int21_0b_get_input_status() {
 }
 
 void dos_t::int21_0c_flush_input_buffer_and_input() {
-	// unimplemented_int(__FUNCTION__);
+	log_int(__FUNCTION__);
 }
 
 void dos_t::int21_0d_disk_reset() {
@@ -255,11 +239,14 @@ void dos_t::int21_18_reserved() {
 }
 
 void dos_t::int21_19_get_default_drive() {
-	writelo(cpu->ax, 2);
+	writelo(user_regs.ax, 2);
 }
 
 void dos_t::int21_1a_set_disk_transfer_address() {
-	unimplemented_int(__FUNCTION__);
+	log_int(__FUNCTION__);
+	user_dta_ofs = cpu->dx;
+	user_dta_seg = cpu->ds;
+	return_syscall_ok();
 }
 
 void dos_t::int21_1b_get_allocation_info_for_default_drive() {
@@ -303,7 +290,10 @@ void dos_t::int21_24_set_random_record_number() {
 }
 
 void dos_t::int21_25_set_interrupt_vector() {
-	unimplemented_int(__FUNCTION__);
+	log_int(__FUNCTION__);
+	byte num = readlo(cpu->ax);
+	machine->mem_write16(0, 4 * num + 0, cpu->dx);
+	machine->mem_write16(0, 4 * num + 2, cpu->ds);
 }
 
 void dos_t::int21_26_create_psp() {
@@ -343,11 +333,24 @@ void dos_t::int21_2e_set_verify_flag() {
 }
 
 void dos_t::int21_2f_get_disk_transfer_address() {
-	unimplemented_int(__FUNCTION__);
+	log_int(__FUNCTION__);
+
+	cpu->bx = user_dta_ofs;
+	cpu->es = user_dta_seg;
+
+	user_regs.bx = cpu->bx;
+	user_regs.es = cpu->es;
+	return_syscall_ok();
 }
 
 void dos_t::int21_30_get_dos_version() {
-	unimplemented_int(__FUNCTION__);
+	log_int(__FUNCTION__);
+	user_regs.bx = 0xff00; // bh    = oem number (ff = MS-DOS)
+	user_regs.cx = 0;    // bl:cx = user number
+
+	// DOS version 2.11
+	writelo(user_regs.ax,  5);
+	writehi(user_regs.ax,  0);
 }
 
 void dos_t::int21_31_terminate_and_stay_resident() {
@@ -359,9 +362,10 @@ void dos_t::int21_32_get_disk_parameter_block_for_specified_drive() {
 }
 
 void dos_t::int21_33_get_or_set_ctrl_break() {
+	log_int(__FUNCTION__);
 	switch (readlo(cpu->ax)) {
 		case 0x00: // get ctrl-break checking flag
-			writelo(cpu->dx, ctrl_break ? 1 : 0);
+			writelo(user_regs.dx, ctrl_break ? 1 : 0);
 			break;
 		case 0x01: // set ctrl-break checking flag
 			ctrl_break = !!readlo(cpu->dx);
@@ -376,10 +380,22 @@ void dos_t::int21_34_get_indos_flag_pointer() {
 }
 
 void dos_t::int21_35_get_interrupt_vector() {
+	log_int(__FUNCTION__);
 	// unimplemented_int(__FUNCTION__);
-	cpu->es = 0xc7ff;
-	cpu->bx = 0x0010;
-	printf("[%04x:%04x] Getting interrupt vector %02xh\n", cpu->cs, cpu->ip, readlo(cpu->ax));
+	// cpu->es = 0xc7ff;
+	// cpu->bx = 0x0010;
+	// printf("[%04x:%04x] Getting interrupt vector %02xh\n", cpu->cs, cpu->ip, readlo(cpu->ax));
+
+	byte num = readlo(cpu->ax);
+
+	if (num == 0) {
+		user_regs.bx = 0xe4cc;
+		user_regs.es = 0xf000;
+		return;
+	}
+
+	user_regs.bx = machine->mem_read16(0, 4 * num + 0);
+	user_regs.es = machine->mem_read16(0, 4 * num + 2);
 }
 
 void dos_t::int21_36_get_free_disk_space() {
@@ -407,6 +423,7 @@ void dos_t::int21_3b_change_current_directory() {
 }
 
 void dos_t::int21_3c_create_or_truncate_file() {
+	log_int(__FUNCTION__);
 	char filepath[257];
 
 	int len = 0;
@@ -427,11 +444,12 @@ void dos_t::int21_3c_create_or_truncate_file() {
 	int fd = open_files.size() + first_fd;
 	open_files.push_back(f);
 
-	clc();
-	cpu->ax = fd;
+	user_regs.ax = fd;
+	return_syscall_ok();
 }
 
 void dos_t::int21_3d_open_file() {
+	log_int(__FUNCTION__);
 	char filepath[257];
 
 	int len = 0;
@@ -439,10 +457,27 @@ void dos_t::int21_3d_open_file() {
 	uint16_t dx = cpu->dx;
 	byte c;
 
+	int start_line = std::max(0, (dx - 32) / 16);
+	for (int i = start_line; i != start_line + 5; ++i) {
+		printf("%04x:%04x ", ds, 0x10 * i);
+		for (int j = 0; j != 16; ++j) {
+			printf("%02x ", machine->mem_read8(ds, 0x10 * i + j));
+		}
+		for (int j = 0; j != 16; ++j) {
+			byte c = machine->mem_read8(ds, 0x10 * i + j);
+			printf("%c", isprint(c) ? c : '.');
+		}
+		printf("\n");
+	}
+
+	printf("====== %c\n", machine->mem_read8(ds, dx-1));
+
 	while (len < 256 && (c = machine->read(MEM, 0x10*ds + dx++))) {
 		filepath[len++] = c;
 	}
 	filepath[len] = '\0';
+
+	printf("Opening file '%s'\n", filepath);
 
 	// Compare the requested filepath with all the files in the current
 	// directory, case-insensitively.
@@ -467,8 +502,8 @@ void dos_t::int21_3d_open_file() {
 	}
 
 	if (!found_file) {
-		stc();
-		cpu->ax = 0x02;
+		printf("File '%s' not found.\n", filepath);
+		return_syscall_error(error_file_not_found);
 		return;
 	}
 
@@ -479,30 +514,31 @@ void dos_t::int21_3d_open_file() {
 #endif
 	assert(f);
 
-	printf("Opening file '%s'\n", filepath);
+	printf("Found file '%s'.\n", filepath);
 
 	int fd = open_files.size() + first_fd;
 	open_files.push_back(f);
 
-	clc();
-	cpu->ax = fd;
+	user_regs.ax = fd;
+	return_syscall_ok();
 }
 
 void dos_t::int21_3e_close_file() {
+	log_int(__FUNCTION__);
 	FILE *f = open_files.at(cpu->bx - first_fd);
 
 	assert(f);
 
 	int r = fclose(f);
 	if (r != 0) {
-		stc();
-		return;
+		return_syscall_error(error_invalid_handle);
 	}
 
-	stc();
+	return_syscall_ok();
 }
 
 void dos_t::int21_3f_read_file_or_device() {
+	// log_int(__FUNCTION__);
 	FILE     *f     = open_files.at(cpu->bx - first_fd);
 	uint16_t  count = cpu->cx;
 	byte     *buf   = machine->memory + (0x10 * cpu->ds + cpu->dx);
@@ -510,11 +546,12 @@ void dos_t::int21_3f_read_file_or_device() {
 	assert(f);
 	size_t r = fread(buf, 1, count, f);
 
-	clc();
-	cpu->ax = r;
+	user_regs.ax = r;
+	return_syscall_ok();
 }
 
 void dos_t::int21_40_write_file_or_device() {
+	log_int(__FUNCTION__);
 	FILE     *f = open_files.at(cpu->bx - first_fd);
 	uint16_t  count = cpu->cx;
 	byte     *buf   = machine->memory + (0x10 * cpu->ds + cpu->dx);
@@ -522,8 +559,8 @@ void dos_t::int21_40_write_file_or_device() {
 	assert(f);
 	uint16_t bytes_written = fwrite(buf, 1, count, f);
 
-	clc();
-	cpu->ax = bytes_written;
+	user_regs.ax = bytes_written;
+	return_syscall_ok();
 }
 
 void dos_t::int21_41_delete_file() {
@@ -531,6 +568,7 @@ void dos_t::int21_41_delete_file() {
 }
 
 void dos_t::int21_42_move_file_pointer() {
+	// log_int(__FUNCTION__);
 	FILE *f = open_files.at(cpu->bx - first_fd);
 	size_t offset = (((uint32_t)cpu->cx) << 16) + cpu->dx;
 
@@ -542,9 +580,7 @@ void dos_t::int21_42_move_file_pointer() {
 		case 1: whence = SEEK_CUR; break;
 		case 2: whence = SEEK_END; break;
 		default:
-			cpu->ax = 0x19; // Seek error
-			stc();
-			return;
+			return_syscall_error(error_invalid_function);
 	}
 
 	size_t result = fseek(f, offset, whence);
@@ -552,9 +588,9 @@ void dos_t::int21_42_move_file_pointer() {
 
 	size_t position = ftell(f);
 
-	clc();
-	cpu->dx = (position >> 16);
-	cpu->ax = (position >>  0) & 0xffff;
+	user_regs.dx = (position >> 16);
+	user_regs.ax = (position >>  0) & 0xffff;
+	return_syscall_ok();
 }
 
 void dos_t::int21_43_get_or_set_file_attributes() {
@@ -562,7 +598,11 @@ void dos_t::int21_43_get_or_set_file_attributes() {
 }
 
 void dos_t::int21_44_io_control_for_devices() {
-	unimplemented_int(__FUNCTION__);
+	log_int(__FUNCTION__);
+	// printf("IOCTL al:%d, bx=%d\n", readlo(cpu->ax), cpu->bx);
+	// unimplemented_int(__FUNCTION__);
+	user_regs.dx = 0x0080;
+	return_syscall_ok();
 }
 
 void dos_t::int21_45_duplicate_handle() {
@@ -578,24 +618,161 @@ void dos_t::int21_47_get_current_directory() {
 }
 
 void dos_t::int21_48_allocate_memory() {
-	unimplemented_int(__FUNCTION__);
+	log_int(__FUNCTION__);
+	uint16_t requested_paras = cpu->bx;
+	uint16_t largest_available = 0;
+	uint16_t first_fit_seg = 0x0000;
+	uint16_t best_fit_seg  = 0x0000;
+	uint16_t best_fit_size = 0x0000;
+	uint16_t last_fit_seg  = 0x0000;
+
+	if (!validate_mcb_chain()) {
+		return_syscall_error(error_arena_trashed);
+	}
+
+	for (mcb_t mcb(machine, 0x0158);; mcb = mcb.next()) {
+		if (!mcb.has_valid_signature()) {
+			break;
+		}
+		if (mcb.is_free()) {
+			/* If there are multiple consecutive free blocks,
+			   combine them into one free block before proceeding. */
+			if (!mcb.coalesce_free_blocks()) {
+				return_syscall_error(error_arena_trashed);
+			}
+
+			uint16_t free_size = mcb.size_in_paras();
+
+			largest_available = std::max(largest_available, free_size);
+
+			if (free_size >= requested_paras) {
+				if (first_fit_seg == 0) {
+					first_fit_seg = mcb.seg;
+				}
+
+				if (!best_fit_seg || free_size < best_fit_size) {
+					best_fit_size = free_size;
+					best_fit_seg = mcb.seg;
+				}
+
+				last_fit_seg = mcb.seg;
+			}
+		}
+
+		if (mcb.is_last()) {
+			break;
+		}
+	}
+
+	if (largest_available < requested_paras) {
+		user_regs.bx = largest_available;
+		return_syscall_error(error_not_enough_memory);
+	}
+
+	uint32_t block_seg;
+	switch (allocation_strategy) {
+		case 0:
+			block_seg = first_fit_seg;
+			break;
+		case 1:
+			block_seg = best_fit_seg;
+			break;
+		default:
+			block_seg = last_fit_seg;
+			break;
+	}
+
+	mcb_t mcb = mcb_t(machine, block_seg);
+	uint32_t mcb_size = mcb.size_in_paras();
+
+	if (requested_paras < mcb_size) {
+		if (allocation_strategy < 2) {
+			mcb.split(requested_paras);
+		} else {
+			/* If strategy is Last Fit then split such
+			 * that the new allocation fits at the end. */
+			mcb.split(mcb_size - requested_paras - 1);
+			mcb = mcb.next();
+		}
+	}
+	mcb.set_owner_pid(1);
+	user_regs.ax = mcb.data_seg();
+
+	if (!validate_mcb_chain()) {
+		return_syscall_error(error_arena_trashed);
+	}
+
+	return_syscall_ok();
 }
 
 void dos_t::int21_49_release_memory() {
-	unimplemented_int(__FUNCTION__);
+	if (!validate_mcb_chain()) {
+		return_syscall_error(error_arena_trashed);
+	}
+
+	uint16_t seg = cpu->bx;
+	assert(seg > 0);
+
+	mcb_t mcb(machine, seg - 1);
+	if (!mcb.has_valid_signature()) {
+		return_syscall_error(error_invalid_block);
+	}
+
+	mcb.set_is_free();
 }
 
 void dos_t::int21_4a_reallocate_memory() {
-	unimplemented_int(__FUNCTION__);
+	log_int(__FUNCTION__);
+
+	uint16_t segment         = cpu->es;
+	uint16_t requested_paras = cpu->bx;
+
+	if (!validate_mcb_chain()) {
+		printf("%s:%d\n", __FILE__, __LINE__);
+		exit(0);
+		return_syscall_error(error_arena_trashed);
+	}
+
+	mcb_t mcb(machine, segment - 1);
+
+	if (!mcb.coalesce_free_blocks()) {
+		printf("%s:%d\n", __FILE__, __LINE__);
+		exit(0);
+		return_syscall_error(error_arena_trashed);
+	}
+
+	uint16_t mcb_size = mcb.size_in_paras();
+
+	if (requested_paras > mcb_size) {
+		user_regs.bx = mcb_size;
+		return_syscall_error(error_not_enough_memory);
+	}
+
+	if (requested_paras < mcb_size) {
+		mcb.split(requested_paras);
+	}
+
+	validate_mcb_chain();
+
+	user_regs.ax = segment;
+	return_syscall_ok();
 }
 
 void dos_t::int21_4b_execute_program() {
 	unimplemented_int(__FUNCTION__);
+
+	uint8_t method = readlo(cpu->ax);
+	if (method != 0 && method != 1 && method != 3) {
+		return_syscall_error(error_invalid_function);
+	}
+
+	int21_3d_open_file();
+	exit(0);
 }
 
 void dos_t::int21_4c_terminate_with_return_code() {
+	log_int(__FUNCTION__);
 	exit(0);
-	// unimplemented_int(__FUNCTION__);
 }
 
 void dos_t::int21_4d_get_program_return_code() {
@@ -643,7 +820,20 @@ void dos_t::int21_57_get_or_set_file_date_and_time() {
 }
 
 void dos_t::int21_58_get_or_set_allocation_strategy() {
-	unimplemented_int(__FUNCTION__);
+	log_int(__FUNCTION__);
+
+	switch (readlo(cpu->ax)) {
+		// Get allocation strategy
+		case 0:
+			user_regs.ax = allocation_strategy;
+			return_syscall_ok();
+
+		// Set allocation strategy
+		case 1:
+			allocation_strategy = readlo(cpu->bx);
+			return_syscall_ok();
+	}
+	return_syscall_error(error_invalid_function);
 }
 
 void dos_t::int21_59_get_extended_error_info() {
@@ -683,7 +873,9 @@ void dos_t::int21_61_reserved() {
 }
 
 void dos_t::int21_62_get_current_psp() {
-	unimplemented_int(__FUNCTION__);
+	log_int(__FUNCTION__);
+	user_regs.dx = current_psp;
+	return_syscall_ok();
 }
 
 void dos_t::int21_63_get_dbcs_lead_byte_table_pointer() {

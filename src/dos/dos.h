@@ -4,41 +4,101 @@
 #include <cstdio>
 #include <vector>
 
+#include "dos/dos_alloc.h"
+
 #include "support/types.h"
 
 class file_reader_t;
 class ibm5160_t;
 class i8086_t;
 
+#define return_syscall_ok()       do { syscall_ok();       return; } while(0)
+#define return_syscall_error(err) do { syscall_error(err); return; } while(0)
+
 class dos_t {
 public:
 	ibm5160_t *machine = nullptr;
 	i8086_t   *cpu;
 
+	int in_dos = 0;
 	bool ctrl_break = true;
 
 	std::vector<FILE *> open_files;
 	const int first_fd = 3;
 
+	uint16_t initial_mcb_seg     = 0x0158;
+	uint8_t  allocation_strategy = 0;
+
 	uint16_t mouse_x = 0;
 	uint16_t mouse_y = 0;
 	uint16_t mouse_buttons = 0;
 
+	uint16_t current_psp;
+
+	uint16_t user_dta_ofs;
+	uint16_t user_dta_seg;
+
+	struct {
+		uint16_t ax;
+		uint16_t bx;
+		uint16_t cx;
+		uint16_t dx;
+		uint16_t si;
+		uint16_t di;
+		uint16_t bp;
+		uint16_t ds;
+		uint16_t es;
+		uint16_t flags;
+	} user_regs;
+
+	enum {
+		error_invalid_function    =  1,
+		error_file_not_found      =  2,
+		error_path_not_found      =  3,
+		error_too_many_open_files =  4,
+		error_access_denied       =  5,
+		error_invalid_handle      =  6,
+		error_arena_trashed       =  7,
+		error_not_enough_memory   =  8,
+		error_invalid_block       =  9,
+		error_bad_environment     = 10,
+		error_bad_format          = 11,
+		error_invalid_access      = 12,
+		error_invalid_data        = 13,
+		error_invalid_drive       = 15,
+		error_current_directory   = 16,
+		error_not_same_device     = 17,
+		error_no_more_files       = 18,
+	};
+
 public:
+	void log_int(const char *op_name);
 	void unimplemented_int(const char *op_name);
 
 	void install();
 
-	void build_psp(uint16_t psp_segment);
+	void build_psp(uint16_t psp_segment, uint16_t psp_size_paras);
 	bool exec(file_reader_t &rd);
 
 	void set_mouse(uint16_t x, uint16_t y, uint16_t buttons);
 
+	bool set_in_env(uint16_t env_seg, const char *s);
+	void remove_from_env(uint16_t env_seg, const char *s);
+
 	void int21();
 	void int33();
 
-	void stc();
+	void save_user_state();
+	void restore_user_state();
+
 	void clc();
+	void stc();
+
+	void syscall_ok();
+	void syscall_error(byte error_code);
+
+	bool     validate_mcb_chain();
+	uint16_t allocate_memory(uint16_t requested_paras, uint16_t *max_paras = nullptr);
 
 	void int21_00_program_terminate();                            // 1.0+
 	void int21_01_character_input();                              // 1.0+
