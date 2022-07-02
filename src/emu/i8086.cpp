@@ -1809,7 +1809,12 @@ void i8086_t::op_mov_reg_imm() {
 }
 
 void i8086_t::op_ret_imm16_intraseg() {
-	unimplemented(__FUNCTION__, __LINE__);
+	ip = pop();
+	sp += fetch16();
+
+	if (!call_stack.empty()) {
+		call_stack.pop_back();
+	}
 }
 
 void i8086_t::op_ret_intraseg() {
