@@ -169,6 +169,13 @@ public:
 		};
 
 		void print();
+
+		modrm_t operator+(int d) {
+			assert(is_mem);
+			modrm_t modrm = *this;
+			modrm.ofs += d;
+			return modrm;
+		}
 	};
 
 	modrm_t modrm_mem_sw(byte modrm, bool s, bool w);

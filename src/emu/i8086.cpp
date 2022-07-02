@@ -1827,9 +1827,11 @@ void i8086_t::op_les_r16_m16() {
 
 	assert(src.is_mem);
 
-	write_modrm(dst, read_modrm(src));
-	src.ofs += 2;
-	es = read_modrm(src);
+	uint16_t ofs = read_modrm(src);
+	uint16_t seg = read_modrm(src + 2);
+
+	write_modrm(dst, ofs);
+	es = seg;
 
 	cycles += 16;
 }
@@ -1841,9 +1843,11 @@ void i8086_t::op_lds_r16_m16() {
 
 	assert(src.is_mem);
 
-	write_modrm(dst, read_modrm(src));
-	src.ofs += 2;
-	ds = read_modrm(src);
+	uint16_t ofs = read_modrm(src);
+	uint16_t seg = read_modrm(src + 2);
+
+	write_modrm(dst, ofs);
+	ds = seg;
 
 	cycles += 16;
 }
