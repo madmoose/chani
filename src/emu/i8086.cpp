@@ -413,7 +413,7 @@ uint32_t i8086_t::dispatch() {
 		OPCODE(0xd3, grp2_rmw);
 		OPCODE(0xd4, aam);
 		OPCODE(0xd5, aad);
-		OPCODE(0xd6, unused);
+		OPCODE(0xd6, salc); // Undocumented by Intel
 		OPCODE(0xd7, xlat);
 		OPCODE(0xd8, esc);
 		OPCODE(0xd9, esc);
@@ -2148,6 +2148,10 @@ void i8086_t::op_aad() {
 	set_sf(sf8(al));
 
 	cycles += 60;
+}
+
+void i8086_t::op_salc() {
+	writelo(ax, get_cf() ? 0xff : 0x00);
 }
 
 void i8086_t::op_xlat() {

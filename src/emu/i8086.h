@@ -314,6 +314,7 @@ public:
 	void op_grp2_rmw();
 	void op_aam();
 	void op_aad();
+	void op_salc();
 	void op_xlat();
 	void op_esc();
 	void op_loopnz();
