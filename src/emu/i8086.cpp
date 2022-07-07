@@ -193,7 +193,7 @@ uint32_t i8086_t::dispatch() {
 		OPCODE(0x0c, alu_a_imm);
 		OPCODE(0x0d, alu_a_imm);
 		OPCODE(0x0e, push_sreg);
-		OPCODE(0x0f, unused);
+		OPCODE(0x0f, pop_sreg);
 		OPCODE(0x10, alu_r_rm);
 		OPCODE(0x11, alu_r_rm);
 		OPCODE(0x12, alu_r_rm);
