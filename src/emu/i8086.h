@@ -347,6 +347,13 @@ public:
 	void op_std();
 	void op_grp4_rm8();
 	void op_grp5();
+	void op_inc_rm16(byte modrm);
+	void op_dec_rm16(byte modrm);
+	void op_call_rm16(byte modrm);
+	void op_call_far(byte modrm);
+	void op_jmp_rm16(byte modrm);
+	void op_jmp_far(byte modrm);
+	void op_push_rm16(byte modrm);
 };
 
 #endif

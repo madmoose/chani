@@ -1890,7 +1890,12 @@ void i8086_t::op_mov_m_imm() {
 }
 
 void i8086_t::op_ret_imm16_interseg() {
-	unimplemented(__FUNCTION__, __LINE__);
+	ip = pop();
+	cs = pop();
+
+	sp += fetch16();
+
+	if (!call_stack.empty()) call_stack.pop_back();
 }
 
 void i8086_t::op_ret_interseg() {
@@ -2621,75 +2626,99 @@ void i8086_t::op_grp4_rm8() {
 void i8086_t::op_grp5() {
 	byte modrm = fetch8();
 	byte subop = (modrm >> 3) & 0b111;
-	modrm_t mem = modrm_mem_sw(modrm, false, true);
 	switch (subop) {
-		case 0b000: {
-			uint16_t v = read_modrm(mem);
-			uint16_t res = alu_w(ALU_ADD, v, 1, true);
-			write_modrm(mem, res);
-			break;
-		}
-		case 0b001: {
-			uint16_t v = read_modrm(mem);
-			uint16_t res = alu_w(ALU_SUB, v, 1, true);
-			write_modrm(mem, res);
-			break;
-		}
-		case 0b010: {
-			uint16_t ofs = read_modrm(mem);
-			push(ip);
-			ip = ofs;
-
-			cycles += 16;
-			if (mem.is_mem) {
-				cycles += 5;
-			}
-
-			call_stack.push_back({
-				{cs, op_ip},
-				{cs, ofs},
-				false
-			});
-			break;
-		}
-		case 0b011: {
-			assert(mem.is_mem && "TODO: Illegal opcode");
-			uint16_t ofs = read_modrm(mem);
-			mem.ofs += 2;
-			uint16_t seg = read_modrm(mem);
-
-			push(cs);
-			push(ip);
-
-			cycles += 37;
-
-			call_stack.push_back({
-				{cs, op_ip},
-				{seg, ofs},
-				false
-			});
-
-			cs = seg;
-			ip = ofs;
-			break;
-		}
-		case 0b100: {
-			uint16_t ofs = read_modrm(mem);
-			ip = ofs;
-			break;
-		}
-		case 0b110: { // push_rm
-			uint16_t v = read_modrm(mem);
-			push(v);
-
-			cycles += 11;
-			if (mem.is_mem) {
-				cycles += 7;
-			}
-			break;
-		}
+		case 0b000: op_inc_rm16(modrm);  break;
+		case 0b001: op_dec_rm16(modrm);  break;
+		case 0b010: op_call_rm16(modrm); break;
+		case 0b011: op_call_far(modrm);  break;
+		case 0b100: op_jmp_rm16(modrm);  break;
+		case 0b101: op_jmp_far(modrm);   break;
+		case 0b110: op_push_rm16(modrm); break;
 		default:
 			printf("op_grp5 subop %x unimplemented\n", subop);
 			unimplemented(__FUNCTION__, __LINE__);
+	}
+}
+
+void i8086_t::op_inc_rm16(byte modrm) {
+	modrm_t mem = modrm_mem_sw(modrm, false, true);
+	uint16_t v = read_modrm(mem);
+	uint16_t res = alu_w(ALU_ADD, v, 1, true);
+	write_modrm(mem, res);
+}
+
+void i8086_t::op_dec_rm16(byte modrm) {
+	modrm_t mem = modrm_mem_sw(modrm, false, true);
+	uint16_t v = read_modrm(mem);
+	uint16_t res = alu_w(ALU_SUB, v, 1, true);
+	write_modrm(mem, res);
+}
+
+void i8086_t::op_call_rm16(byte modrm) {
+	modrm_t mem = modrm_mem_sw(modrm, false, true);
+	uint16_t ofs = read_modrm(mem);
+	push(ip);
+	ip = ofs;
+
+	cycles += 16;
+	if (mem.is_mem) {
+		cycles += 5;
+	}
+
+	call_stack.push_back({
+		{cs, op_ip},
+		{cs, ofs},
+		false
+	});
+}
+
+void i8086_t::op_call_far(byte modrm) {
+	modrm_t mem = modrm_mem_sw(modrm, false, true);
+	assert(mem.is_mem && "TODO: Illegal opcode");
+	uint16_t ofs = read_modrm(mem);
+	uint16_t seg = read_modrm(mem + 2);
+
+	push(cs);
+	push(ip);
+
+	cycles += 37;
+
+	call_stack.push_back({
+		{cs, op_ip},
+		{seg, ofs},
+		false
+	});
+
+	cs = seg;
+	ip = ofs;
+}
+
+void i8086_t::op_jmp_rm16(byte modrm) {
+	modrm_t mem = modrm_mem_sw(modrm, false, true);
+
+	uint16_t ofs = read_modrm(mem);
+
+	ip = ofs;
+}
+
+void i8086_t::op_jmp_far(byte modrm) {
+	modrm_t mem = modrm_mem_sw(modrm, false, true);
+
+	uint16_t ofs = read_modrm(mem);
+	uint16_t seg = read_modrm(mem + 2);
+
+	cs = seg;
+	ip = ofs;
+}
+
+void i8086_t::op_push_rm16(byte modrm) {
+	modrm_t mem = modrm_mem_sw(modrm, false, true);
+
+	uint16_t v = read_modrm(mem);
+	push(v);
+
+	cycles += 11;
+	if (mem.is_mem) {
+		cycles += 7;
 	}
 }
