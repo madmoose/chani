@@ -33,6 +33,8 @@ public:
 		return 5.0;
 	}
 
+	void reset();
+
 	uint64_t next_cycles();
 	uint64_t run_cycles(uint64_t cycles);
 

@@ -31,7 +31,10 @@ void dump_call_stack() {
 }
 
 i8086_t::i8086_t() {
-	op = 0;
+	reset();
+}
+
+void i8086_t::reset() {
 	is_prefix = false;
 	sreg_ovr = 0;
 	repmode = REP_NONE;
@@ -39,6 +42,24 @@ i8086_t::i8086_t() {
 	int_delay = false;
 	int_nmi = false;
 	int_intr = false;
+
+	flags = 0x0002;
+
+	ip = 0xfff0;
+	cs = 0xf000;
+	ds = 0x0000;
+	ss = 0x0000;
+	es = 0x0000;
+
+	ax = 0x0000;
+	cx = 0x0000;
+	dx = 0x0000;
+	bx = 0x0000;
+
+	sp = 0x0000;
+	bp = 0x0000;
+	di = 0x0000;
+	si = 0x0000;
 }
 
 uint64_t i8086_t::next_cycles() {
