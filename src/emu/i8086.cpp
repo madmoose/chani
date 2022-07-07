@@ -391,16 +391,16 @@ uint32_t i8086_t::dispatch() {
 		OPCODE(0xbd, mov_reg_imm);
 		OPCODE(0xbe, mov_reg_imm);
 		OPCODE(0xbf, mov_reg_imm);
-		OPCODE(0xc0, unused);
-		OPCODE(0xc1, unused);
+		OPCODE(0xc0, ret_imm16_intraseg); // Undocumented alias of 0xc2
+		OPCODE(0xc1, ret_intraseg);       // Undocumented alias of 0xc3
 		OPCODE(0xc2, ret_imm16_intraseg);
 		OPCODE(0xc3, ret_intraseg);
 		OPCODE(0xc4, les_r16_m16);
 		OPCODE(0xc5, lds_r16_m16);
 		OPCODE(0xc6, mov_m_imm);
 		OPCODE(0xc7, mov_m_imm);
-		OPCODE(0xc8, unused);
-		OPCODE(0xc9, unused);
+		OPCODE(0xc8, ret_imm16_interseg); // Undocumented alias of 0xca
+		OPCODE(0xc9, ret_interseg);       // Undocumented alias of 0xcb
 		OPCODE(0xca, ret_imm16_interseg);
 		OPCODE(0xcb, ret_interseg);
 		OPCODE(0xcc, int_3);
