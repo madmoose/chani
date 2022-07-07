@@ -295,22 +295,22 @@ uint32_t i8086_t::dispatch() {
 		OPCODE(0x5d, pop_reg);
 		OPCODE(0x5e, pop_reg);
 		OPCODE(0x5f, pop_reg);
-		OPCODE(0x60, unused);
-		OPCODE(0x61, unused);
-		OPCODE(0x62, unused);
-		OPCODE(0x63, unused);
-		OPCODE(0x64, unused);
-		OPCODE(0x65, unused);
-		OPCODE(0x66, unused);
-		OPCODE(0x67, unused);
-		OPCODE(0x68, unused);
-		OPCODE(0x69, unused);
-		OPCODE(0x6a, unused);
-		OPCODE(0x6b, unused);
-		OPCODE(0x6c, unused);
-		OPCODE(0x6d, unused);
-		OPCODE(0x6e, unused);
-		OPCODE(0x6f, unused);
+		OPCODE(0x60, jcc); // Undocumented alias of 0x70
+		OPCODE(0x61, jcc); // Undocumented alias of 0x71
+		OPCODE(0x62, jcc); // Undocumented alias of 0x72
+		OPCODE(0x63, jcc); // Undocumented alias of 0x73
+		OPCODE(0x64, jcc); // Undocumented alias of 0x74
+		OPCODE(0x65, jcc); // Undocumented alias of 0x75
+		OPCODE(0x66, jcc); // Undocumented alias of 0x76
+		OPCODE(0x67, jcc); // Undocumented alias of 0x77
+		OPCODE(0x68, jcc); // Undocumented alias of 0x78
+		OPCODE(0x69, jcc); // Undocumented alias of 0x79
+		OPCODE(0x6a, jcc); // Undocumented alias of 0x7a
+		OPCODE(0x6b, jcc); // Undocumented alias of 0x7b
+		OPCODE(0x6c, jcc); // Undocumented alias of 0x7c
+		OPCODE(0x6d, jcc); // Undocumented alias of 0x7d
+		OPCODE(0x6e, jcc); // Undocumented alias of 0x7e
+		OPCODE(0x6f, jcc); // Undocumented alias of 0x7f
 		OPCODE(0x70, jcc);
 		OPCODE(0x71, jcc);
 		OPCODE(0x72, jcc);
