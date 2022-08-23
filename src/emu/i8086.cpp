@@ -1,6 +1,8 @@
 #include "i8086.h"
 
 #include "ibm5160.h"
+#include "disasm/disasm_i8086.h"
+#include "disasm/names.h"
 
 #include <cassert>
 #include <cctype>
@@ -155,6 +157,10 @@ i8086_addr_t i8086_t::install_callback(uint16_t seg, uint16_t ofs, callback_t ca
 		callback_next_addr.seg += 0x100;
 	}
 	return addr;
+}
+
+void i8086_t::set_names(names_t *a_names) {
+	names = a_names;
 }
 
 uint32_t i8086_t::step() {

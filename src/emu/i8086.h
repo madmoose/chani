@@ -3,25 +3,26 @@
 
 #include "emu/emu.h"
 #include "emu/cpu_device.h"
+#include "emu/i8086_addr.h"
 #include "support/types.h"
 
 #include <functional>
 #include <vector>
 
+class disasm_i8086_t;
 class ibm5160_t;
-
-struct i8086_addr_t {
-	uint16_t seg;
-	uint16_t ofs;
-};
+class names_t;
 
 class i8086_t : public cpu_device_t {
 	int instr_count = 0;
 	uint64_t cycles = 0;
 
-	std::vector<callback_t>       callbacks;
-	i8086_addr_t                  callback_base_addr;
-	i8086_addr_t                  callback_next_addr;
+	std::vector<callback_t> callbacks;
+	i8086_addr_t            callback_base_addr;
+	i8086_addr_t            callback_next_addr;
+
+	disasm_i8086_t         *disassembler = nullptr;
+	names_t                *names;
 
 public:
 	read_cb_t  read;
@@ -55,6 +56,8 @@ public:
 	void raise_nmi();
 	void raise_intr(byte num);
 	void call_int(byte num);
+
+	void set_names(names_t *);
 
 	/* Registers */
 	enum {

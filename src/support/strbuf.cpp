@@ -44,3 +44,9 @@ int strbuf_t::sprintf(const char *format, ...) {
 
 	return len;
 }
+
+void strbuf_t::align_col(int col) {
+	while (len < col) {
+		sprintf(" ");
+	}
+}

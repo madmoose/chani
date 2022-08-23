@@ -19,6 +19,12 @@ public:
 		len = 0;
 	}
 
+	int get_len() {
+		return len;
+	}
+
+	void align_col(int col);
+
 	const char *cstr() {
 		return s;
 	}
